@@ -631,6 +631,7 @@ function renderPipeline(c){
           html+=`<div style="padding:8px 12px;display:flex;flex-direction:column;gap:6px">`;
           sc.forEach(l=>{
             const p=pct(l);const pc=pctColor(p);const tc=l.tipo_contrato;
+            const isNoOk=l.stage==='prospecto'&&l.notes&&l.notes.includes('NO OK');
             html+=`<div onclick="openLead(${l.id})" style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface);border:2px solid var(--border);border-left:4px solid ${st.color};border-radius:var(--rsm);cursor:pointer;transition:all .13s" onmouseover="this.style.transform='translateX(3px)';this.style.boxShadow='0 4px 12px rgba(100,60,220,.1)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
               <div style="flex:1;min-width:0">
                 <div class="N" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
@@ -775,6 +776,18 @@ function renderEquip(c){
             ?`<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;background:var(--bg);padding:8px 10px;border-radius:var(--rsm)">${l.equipamiento}</div>`
             :`<div style="font-size:11px;color:var(--text3);font-style:italic;padding:8px 0">Sin equipamiento registrado</div>`
           }
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <div style="background:${l.secador==='Sí'?'var(--green-l)':'var(--bg)'};border:1px solid ${l.secador==='Sí'?'rgba(22,163,74,.3)':'var(--border)'};border-radius:var(--rsm);padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;flex:1;text-align:center" onclick="cycleField(${l.id},'secador',['Sí','No','Pendiente'])">💨 Secador: ${l.secador||'—'}</div>
+            <div style="background:${l.plancha==='Sí'?'var(--green-l)':'var(--bg)'};border:1px solid ${l.plancha==='Sí'?'rgba(22,163,74,.3)':'var(--border)'};border-radius:var(--rsm);padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;flex:1;text-align:center" onclick="cycleField(${l.id},'plancha',['Sí','No','Pendiente'])">👔 Plancha: ${l.plancha||'—'}</div>
+          </div>
+          ${l.inventario&&l.inventario.length?`
+          <div style="margin-top:10px">
+            <div style="font-size:10px;font-weight:900;font-family:'Nunito',sans-serif;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">📦 Inventario (${l.inventario.filter(i=>i.ok).length}/${l.inventario.length})</div>
+            ${l.inventario.map(item=>`<div style="display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:3px">
+              <span style="font-size:14px">${item.ok?'✅':'⬜'}</span>
+              <span style="${item.ok?'text-decoration:line-through;color:var(--text3)':''}">${item.qty>1?item.qty+'x ':''} ${item.name}</span>
+            </div>`).join('')}
+          </div>`:''}
         </div>
         <div style="padding:12px 16px">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -785,6 +798,14 @@ function renderEquip(c){
             ?`<div style="font-size:12px;color:var(--text);line-height:1.7;white-space:pre-wrap;background:var(--bg);padding:8px 10px;border-radius:var(--rsm);font-family:'Nunito',sans-serif">${l.claves}</div>`
             :`<div style="font-size:11px;color:var(--text3);font-style:italic;padding:8px 0">Sin claves registradas</div>`
           }
+          ${l.monto_pagado?`<div style="margin-top:10px;padding:8px 10px;background:var(--green-l);border-radius:var(--rsm);border:1px solid rgba(22,163,74,.2)">
+            <div style="font-size:10px;font-weight:900;color:var(--green-d);text-transform:uppercase;letter-spacing:.05em">💵 Monto pagado</div>
+            <div style="font-size:16px;font-weight:900;font-family:'Nunito',sans-serif;color:var(--green-d);margin-top:2px">${l.monto_pagado}</div>
+          </div>`:''}
+          ${l.cuenta_transferencia?`<div style="margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:var(--rsm)">
+            <div style="font-size:10px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.05em">🏦 Cuenta transferencia</div>
+            <div style="font-size:12px;margin-top:2px;line-height:1.5">${l.cuenta_transferencia}</div>
+          </div>`:''}
         </div>
       </div>
     </div>`;
@@ -1155,6 +1176,10 @@ function openNew(stage){
       </div>
     </div>
     <div class="frow">
+      <div class="field"><label>💵 Monto pagado</label><input id="nf-monto" placeholder="$0"></div>
+      <div class="field"><label>🏦 Cuenta transferencia</label><input id="nf-cuenta" placeholder="Banco / Nº / RUT"></div>
+    </div>
+    <div class="frow">
       <div class="field"><label>Origen</label><select id="nf-origen"><option>Fundamenta</option><option>Lead Propio</option><option>Ex AQC</option><option>Instagram</option><option>Google</option><option>Referido</option><option>Otro</option></select></div>
       <div class="field"><label>Etapa inicial</label><select id="nf-stage">${GROUPS.map(g=>g.stages.map(s=>`<option value="${s.id}"${s.id===(stage||'prospecto')?'selected':''}>${s.emoji} ${s.label}</option>`).join('')).join('')}</select></div>
     </div>
@@ -1194,12 +1219,23 @@ function saveLead(){
     camas:document.getElementById('nf-camas').value||'',
     sofa_cama:'',estac:'',ac:'',calef:'',wifi:'',lavadora:'',comodidades:'',datos_admin:'',claves:'',
     notes:document.getElementById('nf-notes').value,
+    monto_pagado:document.getElementById('nf-monto')?document.getElementById('nf-monto').value:'',
+    cuenta_transferencia:document.getElementById('nf-cuenta')?document.getElementById('nf-cuenta').value:'',
     voucher:null,
     checks:defaultChecks(stage),
     history:['Prospecto creado'],
     historyDates:[dateStr()],
   });
   saveData();closeModal();renderView();toast('🎉 Prospecto guardado');
+}
+
+function cycleField(id,field,options){
+  const l=leads.find(x=>x.id===id);if(!l)return;
+  const cur=l[field]||'';
+  const idx=options.indexOf(cur);
+  l[field]=options[(idx+1)%options.length];
+  saveData();renderView();
+  toast((field==='secador'?'💨 Secador: ':'👔 Plancha: ')+l[field]);
 }
 
 function exportData(){
