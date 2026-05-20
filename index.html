@@ -236,20 +236,29 @@ const SUPA_URL = 'https://nahftiusccznyrqivttj.supabase.co';
 const SUPA_KEY = 'sb_publishable_FBPkpPiX0qWwFw629nkYBQ_pConS-q5';
 
 async function supaFetch(method, body=null){
+  // Soporta query strings tipo 'GET?select=...&order=id.asc'
+  let url = SUPA_URL + '/rest/v1/leads';
+  let httpMethod = method;
+  const qIdx = method.indexOf('?');
+  if(qIdx !== -1){
+    httpMethod = method.substring(0, qIdx);
+    url += method.substring(qIdx);
+  }
   const opts = {
-    method,
+    method: httpMethod,
     headers: {
       'apikey': SUPA_KEY,
       'Authorization': 'Bearer ' + SUPA_KEY,
       'Content-Type': 'application/json',
-      'Prefer': method==='POST'?'resolution=merge-duplicates':''
+      'Prefer': httpMethod==='POST' ? 'resolution=merge-duplicates' : ''
     }
   };
   if(body) opts.body = JSON.stringify(body);
-  const res = await fetch(SUPA_URL+'/rest/v1/leads', opts);
+  const res = await fetch(url, opts);
   if(!res.ok){ console.error('Supa error', await res.text()); return null; }
-  return method==='GET'?res.json():true;
+  return httpMethod==='GET' ? res.json() : true;
 }
+
 
 async function saveToCloud(){
   const rows = leads.map(l=>({'id':l.id,'data':l,'updated_at':new Date().toISOString()}));
@@ -316,7 +325,10 @@ function hideLoadingScreen(){
   const el=document.getElementById('loading-screen');
   if(el)el.style.display='none';
 }
-
+function updateBadge(){
+  const nb=document.getElementById('nb');
+  if(nb)nb.textContent=leads.length;
+}
 // Add spin animation
 const spinStyle=document.createElement('style');
 spinStyle.textContent='@keyframes spin{to{transform:rotate(360deg)}}';
