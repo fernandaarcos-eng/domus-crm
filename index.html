@@ -1480,6 +1480,60 @@ function tryMigrateMeses(){
   }
 }
 setTimeout(tryMigrateMeses, 2000);
+  // ═══ RESUMEN CON FILTRO DE MES ═══
+const __origRenderResumen_mes = renderResumen;
+renderResumen = function(c){
+  const todosLeads = leads;
+  const leadsFiltered = (function(){
+    if(currentMes === 'todos') return todosLeads;
+    if(currentMes === 'sin_asignar') return todosLeads.filter(l=>!l.mes_asignado);
+    return todosLeads.filter(l=>l.mes_asignado === currentMes);
+  })();
+  const meses = new Set();
+  todosLeads.forEach(l=>{ if(l.mes_asignado) meses.add(l.mes_asignado); });
+  const mesesArr = Array.from(meses).sort();
+  const sinAsignar = todosLeads.filter(l => !l.mes_asignado).length;
+  let carpetas = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r)">`;
+  carpetas += `<div style="font-size:10px;font-weight:900;font-family:'Nunito',sans-serif;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;width:100%;margin-bottom:4px">📂 Filtrar por mes</div>`;
+  const todosActive = currentMes==='todos';
+  carpetas += `<div onclick="setCurrentMes('todos')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:2px solid ${todosActive?'var(--purple)':'var(--border2)'};background:${todosActive?'var(--purple)':'var(--surface2)'};color:${todosActive?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;transition:all .13s;font-size:12px;font-weight:800;font-family:'Nunito',sans-serif"><span>📂</span>Todos<span style="background:${todosActive?'rgba(255,255,255,.25)':'var(--bg)'};color:${todosActive?'#fff':'var(--text2)'};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:900">${todosLeads.length}</span></div>`;
+  mesesArr.forEach(m=>{
+    const count = todosLeads.filter(l=>l.mes_asignado===m).length;
+    const active = currentMes===m;
+    carpetas += `<div onclick="setCurrentMes('${m}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:2px solid ${active?'var(--purple)':'var(--border2)'};background:${active?'var(--purple)':'var(--surface2)'};color:${active?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;transition:all .13s;font-size:12px;font-weight:800;font-family:'Nunito',sans-serif"><span>📁</span>${formatMes(m)}<span style="background:${active?'rgba(255,255,255,.25)':'var(--bg)'};color:${active?'#fff':'var(--text2)'};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:900">${count}</span></div>`;
+  });
+  if(sinAsignar > 0){
+    const active = currentMes==='sin_asignar';
+    carpetas += `<div onclick="setCurrentMes('sin_asignar')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:2px solid ${active?'var(--amber)':'var(--border2)'};background:${active?'var(--amber)':'var(--surface2)'};color:${active?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;transition:all .13s;font-size:12px;font-weight:800;font-family:'Nunito',sans-serif"><span>📥</span>Sin asignar<span style="background:${active?'rgba(255,255,255,.25)':'var(--bg)'};color:${active?'#fff':'var(--text2)'};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:900">${sinAsignar}</span></div>`;
+  }
+  carpetas += `</div>`;
+  const total = leadsFiltered.length;
+  const activos = leadsFiltered.filter(l=>l.stage==='cliente_activo').length;
+  const enProceso = leadsFiltered.filter(l=>l.stage!=='cliente_activo' && l.stage!=='prospecto').length;
+  const conversion = total ? Math.round(activos/total*100) : 0;
+  const origen = {};
+  leadsFiltered.forEach(l=>{ origen[l.origen]=(origen[l.origen]||0)+1; });
+  const mesTitle = currentMes==='todos' ? 'todos los meses' : (currentMes==='sin_asignar' ? 'clientes sin mes asignado' : formatMes(currentMes));
+  c.innerHTML = carpetas + `
+    <div style="font-size:12px;color:var(--text2);font-weight:700;margin-bottom:10px;font-family:'Nunito',sans-serif">Mostrando estadísticas de: <span style="color:var(--purple-d);font-weight:900">${mesTitle}</span></div>
+    <div class="srow">
+      <div class="sc"><div class="sc-icon">👥</div><div class="sc-val" style="color:var(--purple)">${total}</div><div class="sc-lbl">Total</div></div>
+      <div class="sc"><div class="sc-icon">⭐</div><div class="sc-val" style="color:var(--green)">${activos}</div><div class="sc-lbl">Activos</div></div>
+      <div class="sc"><div class="sc-icon">⚙️</div><div class="sc-val" style="color:var(--blue)">${enProceso}</div><div class="sc-lbl">En proceso</div></div>
+      <div class="sc"><div class="sc-icon">🎯</div><div class="sc-val" style="color:var(--orange)">${conversion}%</div><div class="sc-lbl">Conversión</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:18px 22px">
+        <div class="N" style="font-size:13px;font-weight:900;margin-bottom:14px">📊 Por etapa</div>
+        ${GROUPS.map(g=>`<div style="font-size:9px;font-weight:900;font-family:'Nunito',sans-serif;color:${g.color};text-transform:uppercase;letter-spacing:.07em;margin:8px 0 4px;padding:2px 7px;background:${g.bg};border-radius:var(--rxs);display:inline-block">${g.label}</div>${g.stages.map(st=>{const n=leadsFiltered.filter(l=>l.stage===st.id).length;const p=total?Math.round(n/total*100):0;return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:13px;width:18px">${st.emoji}</span><span style="font-size:11px;font-weight:700;font-family:'Nunito',sans-serif;width:130px;color:var(--text2);flex-shrink:0">${st.label}</span><div style="flex:1;height:7px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="height:100%;width:${p}%;background:${st.color};border-radius:4px"></div></div><span style="font-size:11px;font-weight:900;font-family:'Nunito',sans-serif;min-width:16px;text-align:right;color:${st.color}">${n}</span></div>`}).join('')}`).join('')}
+      </div>
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:18px 22px">
+        <div class="N" style="font-size:13px;font-weight:900;margin-bottom:14px">🔍 Por origen</div>
+        ${Object.entries(origen).sort((a,b)=>b[1]-a[1]).map(([k,v])=>{const p=total?Math.round(v/total*100):0;return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span style="font-size:11px;font-weight:700;font-family:'Nunito',sans-serif;width:100px;color:var(--text2);flex-shrink:0">${k||'Sin origen'}</span><div style="flex:1;height:7px;background:var(--bg);border-radius:4px;overflow:hidden"><div style="height:100%;width:${p}%;background:var(--purple);border-radius:4px"></div></div><span style="font-size:11px;font-weight:900;font-family:'Nunito',sans-serif;min-width:16px;text-align:right;color:var(--purple)">${v}</span></div>`}).join('')}
+      </div>
+    </div>
+  `;
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
