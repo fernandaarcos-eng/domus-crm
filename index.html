@@ -1360,6 +1360,126 @@ setTimeout(()=>{
     setDept(currentDept);
   }
 }, 1500);
+  // ═══ SISTEMA DE CARPETAS POR MES ═══
+const MESES_NOMBRES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+function formatMes(yyyy_mm){
+  if(!yyyy_mm) return 'Sin asignar';
+  const parts = yyyy_mm.split('-');
+  return MESES_NOMBRES[parseInt(parts[1])-1];
+}
+function currentMonthValue(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+let currentMes = localStorage.getItem('current_mes') || 'todos';
+function setCurrentMes(mes){
+  currentMes = mes;
+  localStorage.setItem('current_mes', mes);
+  renderView();
+}
+function migrateMeses(){
+  let dirty = false;
+  leads.forEach(l=>{
+    if(!l.mes_asignado){
+      l.mes_asignado = '2026-05';
+      dirty = true;
+    }
+  });
+  if(dirty) saveData();
+}
+const __origFilteredLeads_mes = filteredLeads;
+filteredLeads = function(){
+  let res = __origFilteredLeads_mes();
+  if(currentMes && currentMes !== 'todos'){
+    if(currentMes === 'sin_asignar'){
+      res = res.filter(l => !l.mes_asignado);
+    } else {
+      res = res.filter(l => l.mes_asignado === currentMes);
+    }
+  }
+  return res;
+};
+const __origRenderPipeline_mes = renderPipeline;
+renderPipeline = function(c){
+  const meses = new Set();
+  leads.forEach(l=>{ if(l.mes_asignado) meses.add(l.mes_asignado); });
+  const mesesArr = Array.from(meses).sort();
+  const sinAsignar = leads.filter(l => !l.mes_asignado).length;
+  let carpetas = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r)">`;
+  carpetas += `<div style="font-size:10px;font-weight:900;font-family:'Nunito',sans-serif;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;width:100%;margin-bottom:4px">📂 Carpetas por mes</div>`;
+  const todosActive = currentMes==='todos';
+  carpetas += `<div onclick="setCurrentMes('todos')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:2px solid ${todosActive?'var(--purple)':'var(--border2)'};background:${todosActive?'var(--purple)':'var(--surface2)'};color:${todosActive?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;transition:all .13s;font-size:12px;font-weight:800;font-family:'Nunito',sans-serif"><span>📂</span>Todos<span style="background:${todosActive?'rgba(255,255,255,.25)':'var(--bg)'};color:${todosActive?'#fff':'var(--text2)'};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:900">${leads.length}</span></div>`;
+  mesesArr.forEach(m=>{
+    const count = leads.filter(l=>l.mes_asignado===m).length;
+    const active = currentMes===m;
+    carpetas += `<div onclick="setCurrentMes('${m}')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:2px solid ${active?'var(--purple)':'var(--border2)'};background:${active?'var(--purple)':'var(--surface2)'};color:${active?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;transition:all .13s;font-size:12px;font-weight:800;font-family:'Nunito',sans-serif"><span>📁</span>${formatMes(m)}<span style="background:${active?'rgba(255,255,255,.25)':'var(--bg)'};color:${active?'#fff':'var(--text2)'};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:900">${count}</span></div>`;
+  });
+  if(sinAsignar > 0){
+    const active = currentMes==='sin_asignar';
+    carpetas += `<div onclick="setCurrentMes('sin_asignar')" style="display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border:2px solid ${active?'var(--amber)':'var(--border2)'};background:${active?'var(--amber)':'var(--surface2)'};color:${active?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;transition:all .13s;font-size:12px;font-weight:800;font-family:'Nunito',sans-serif"><span>📥</span>Sin asignar<span style="background:${active?'rgba(255,255,255,.25)':'var(--bg)'};color:${active?'#fff':'var(--text2)'};padding:1px 7px;border-radius:20px;font-size:10px;font-weight:900">${sinAsignar}</span></div>`;
+  }
+  carpetas += `</div>`;
+  __origRenderPipeline_mes(c);
+  c.innerHTML = carpetas + c.innerHTML;
+};
+const __origOpenNew_mes = openNew;
+openNew = function(stage){
+  __origOpenNew_mes(stage);
+  setTimeout(()=>{
+    const origenSel = document.getElementById('nf-origen');
+    if(origenSel && !document.getElementById('nf-mes')){
+      const mesContainer = document.createElement('div');
+      mesContainer.className = 'field';
+      mesContainer.innerHTML = `<label>📅 Mes asignado</label><input type="month" id="nf-mes" value="${currentMonthValue()}">`;
+      const origenField = origenSel.closest('.field');
+      if(origenField && origenField.parentNode){
+        origenField.parentNode.insertBefore(mesContainer, origenField);
+      }
+    }
+  }, 80);
+};
+const __origSaveLead_mes = saveLead;
+saveLead = function(){
+  const mesInput = document.getElementById('nf-mes');
+  const mesValue = mesInput ? mesInput.value : currentMonthValue();
+  __origSaveLead_mes();
+  if(mesValue && leads.length){
+    leads[leads.length-1].mes_asignado = mesValue;
+    saveData();
+    renderView();
+  }
+};
+const __origRenderModal_mes = renderModal;
+renderModal = function(){
+  __origRenderModal_mes();
+  setTimeout(()=>{
+    const l = leads.find(x => x.id === selectedId);
+    if(!l) return;
+    const editTab = document.getElementById('tedit');
+    if(editTab && !editTab.querySelector('.mes-field-edit')){
+      const mesField = document.createElement('div');
+      mesField.className = 'field mes-field-edit';
+      mesField.innerHTML = `<label>📅 Mes asignado</label><input type="month" value="${l.mes_asignado||''}" onchange="updF(${l.id},'mes_asignado',this.value); renderView();">`;
+      editTab.insertBefore(mesField, editTab.firstChild);
+    }
+    const infoTab = document.getElementById('ti');
+    if(infoTab && !infoTab.querySelector('.mes-field-info') && l.mes_asignado){
+      const mesInfo = document.createElement('div');
+      mesInfo.className = 'field mes-field-info';
+      mesInfo.innerHTML = `<label>📅 Mes asignado</label><div style="font-size:13px;padding:4px 0;font-weight:700">${formatMes(l.mes_asignado)}</div>`;
+      infoTab.appendChild(mesInfo);
+    }
+  }, 100);
+};
+function tryMigrateMeses(){
+  if(leads && leads.length > 0){
+    migrateMeses();
+    renderView();
+  } else {
+    setTimeout(tryMigrateMeses, 600);
+  }
+}
+setTimeout(tryMigrateMeses, 2000);
 // Load from cloud on startup
 loadFromCloud();
 </script>
