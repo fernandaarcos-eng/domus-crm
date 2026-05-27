@@ -194,6 +194,22 @@ tr:hover td{background:var(--purple-l);cursor:pointer}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 /* TIPO badge */
 .tipo-badge{font-size:9px;font-weight:900;padding:2px 7px;border-radius:20px;font-family:'Nunito',sans-serif;display:inline-block}
+/* ═══ DEPARTAMENTOS ═══ */
+.dept-tabs{display:flex;flex-direction:column;gap:3px;padding:10px 10px 8px;border-bottom:2px solid var(--border)}
+.dept-tab{padding:9px 12px;font-size:11px;font-weight:800;font-family:'Nunito',sans-serif;color:var(--text2);cursor:pointer;border-radius:10px;transition:all .13s;display:flex;align-items:center;gap:7px;border:2px solid transparent;letter-spacing:-.01em}
+.dept-tab i{font-size:14px}
+.dept-tab:hover{background:var(--bg);color:var(--text)}
+.dept-tab.active{background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;box-shadow:0 4px 12px rgba(120,60,220,.3)}
+.dept-tab.active i{color:#fff}
+.dept-nav{display:block}
+.dept-nav.hidden{display:none}
+.dept-placeholder{display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:18px;text-align:center;padding:24px}
+.dept-placeholder-emoji{font-size:80px;line-height:1}
+.dept-placeholder-title{font-family:'Nunito',sans-serif;font-size:24px;font-weight:900;background:linear-gradient(135deg,var(--purple),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.dept-placeholder-text{font-size:14px;color:var(--text2);max-width:520px;line-height:1.6}
+.dept-placeholder-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;max-width:560px;width:100%;margin-top:8px}
+.dept-placeholder-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--rsm);padding:14px;font-size:12px;font-weight:700;color:var(--text2);text-align:left}
+.dept-placeholder-card .e{font-size:22px;margin-bottom:6px;display:block}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
@@ -205,16 +221,35 @@ tr:hover td{background:var(--purple-l);cursor:pointer}
     <div class="sb-icon"><i class="ti ti-building"></i></div>
     <div class="sb-text"><h1>Domus Rentals</h1><p>CRM Renta Corta</p></div>
   </div>
-  <div class="nav">
-    <div class="nav-s">Vistas</div>
-    <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb">0</span></div>
-    <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
-    <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
-    <div class="nav-i" onclick="showView('equip',this)"><i class="ti ti-tool"></i>Equip. y Claves</div>
-    <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
-    <div class="nav-s">Herramientas</div>
-    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
-    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+ <div class="nav">
+    <!-- SELECTOR DE DEPARTAMENTOS -->
+    <div class="dept-tabs">
+      <div class="dept-tab active" data-dept="comercial" onclick="setDept('comercial')"><i class="ti ti-briefcase"></i>Comercial</div>
+      <div class="dept-tab" data-dept="finanzas" onclick="setDept('finanzas')"><i class="ti ti-coin"></i>Finanzas y Logística</div>
+      <div class="dept-tab" data-dept="reservas" onclick="setDept('reservas')"><i class="ti ti-calendar-event"></i>Reservas</div>
+    </div>
+    <!-- COMERCIAL -->
+    <div id="nav-comercial" class="dept-nav">
+      <div class="nav-s">Vistas</div>
+      <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb">0</span></div>
+      <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+      <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+      <div class="nav-i" onclick="showView('equip',this)"><i class="ti ti-tool"></i>Equip. y Claves</div>
+      <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      <div class="nav-s">Herramientas</div>
+      <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+      <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+    </div>
+    <!-- FINANZAS Y LOGÍSTICA -->
+    <div id="nav-finanzas" class="dept-nav hidden">
+      <div class="nav-s">En construcción</div>
+      <div class="nav-i" onclick="showFinanzasPlaceholder()"><i class="ti ti-home"></i>Inicio</div>
+    </div>
+    <!-- RESERVAS -->
+    <div id="nav-reservas" class="dept-nav hidden">
+      <div class="nav-s">En construcción</div>
+      <div class="nav-i" onclick="showReservasPlaceholder()"><i class="ti ti-home"></i>Inicio</div>
+    </div>
   </div>
   <div class="sb-foot">
     <div class="save-s"><div class="sdot" id="sdot"></div><span id="stxt">Guardado automático</span></div>
@@ -1264,7 +1299,67 @@ function toast(msg){
   t.textContent=msg;t.classList.add('show');
   clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800);
 }
-
+// ═══ SISTEMA DE DEPARTAMENTOS ═══
+let currentDept = localStorage.getItem('current_dept') || 'comercial';
+function setDept(dept){
+  currentDept = dept;
+  localStorage.setItem('current_dept', dept);
+  document.querySelectorAll('.dept-tab').forEach(t=>{
+    t.classList.toggle('active', t.dataset.dept === dept);
+  });
+  ['comercial','finanzas','reservas'].forEach(d=>{
+    const nav = document.getElementById('nav-'+d);
+    if(nav) nav.classList.toggle('hidden', d !== dept);
+  });
+  if(dept === 'comercial'){
+    const first = document.querySelector('#nav-comercial .nav-i');
+    if(first) showView('pipeline', first);
+  } else if(dept === 'finanzas'){
+    showFinanzasPlaceholder();
+  } else if(dept === 'reservas'){
+    showReservasPlaceholder();
+  }
+}
+function showFinanzasPlaceholder(){
+  document.getElementById('vtitle').textContent = '💰 Departamento de Finanzas y Logística';
+  document.getElementById('mc').innerHTML = `
+    <div class="dept-placeholder">
+      <div class="dept-placeholder-emoji">💰</div>
+      <div class="dept-placeholder-title">Próximamente</div>
+      <div class="dept-placeholder-text">Esta sección está en construcción. Aquí gestionarás todas las operaciones financieras y logísticas de Domus Rentals.</div>
+      <div class="dept-placeholder-grid">
+        <div class="dept-placeholder-card"><span class="e">📊</span>Ingresos y pagos a propietarios</div>
+        <div class="dept-placeholder-card"><span class="e">🧾</span>Facturación y boletas</div>
+        <div class="dept-placeholder-card"><span class="e">🧹</span>Coordinación de limpieza</div>
+        <div class="dept-placeholder-card"><span class="e">🛠️</span>Mantenimiento y reparaciones</div>
+        <div class="dept-placeholder-card"><span class="e">📦</span>Inventario y suministros</div>
+        <div class="dept-placeholder-card"><span class="e">💳</span>Conciliación bancaria</div>
+      </div>
+    </div>`;
+}
+function showReservasPlaceholder(){
+  document.getElementById('vtitle').textContent = '📅 Departamento de Reservas';
+  document.getElementById('mc').innerHTML = `
+    <div class="dept-placeholder">
+      <div class="dept-placeholder-emoji">📅</div>
+      <div class="dept-placeholder-title">Próximamente</div>
+      <div class="dept-placeholder-text">Esta sección está en construcción. Aquí gestionarás todo el ciclo de reservas y atención a huéspedes.</div>
+      <div class="dept-placeholder-grid">
+        <div class="dept-placeholder-card"><span class="e">📆</span>Calendario de reservas</div>
+        <div class="dept-placeholder-card"><span class="e">🔑</span>Check-in / check-out</div>
+        <div class="dept-placeholder-card"><span class="e">💬</span>Mensajería con huéspedes</div>
+        <div class="dept-placeholder-card"><span class="e">⭐</span>Reseñas y calificaciones</div>
+        <div class="dept-placeholder-card"><span class="e">🛏️</span>Disponibilidad por depto</div>
+        <div class="dept-placeholder-card"><span class="e">📈</span>Ocupación y tarifas</div>
+      </div>
+    </div>`;
+}
+// Restaurar departamento al cargar (después de que la app esté lista)
+setTimeout(()=>{
+  if(currentDept !== 'comercial' && localStorage.getItem('domus_token')){
+    setDept(currentDept);
+  }
+}, 1500);
 // Load from cloud on startup
 loadFromCloud();
 </script>
