@@ -1986,6 +1986,219 @@ renderModal = function(){
     `;
   }, 250);
 };
+  // ═══ CAMBIOS V4: Logo + Sidebar v2 + Clave en Info + Criterios actualizados + Alertas ═══
+
+// 1) Logo + sidebar sin "Equip. y Claves"
+function reorganizarSidebarV4(){
+  const sbLogo = document.querySelector('.sb-logo');
+  if(sbLogo && !sbLogo.dataset.v4){
+    sbLogo.dataset.v4 = 'true';
+    sbLogo.innerHTML = `
+      <img src="logo.png" alt="Domus Rentals" style="width:44px;height:44px;border-radius:50%;flex-shrink:0;object-fit:cover;background:#fff;padding:2px;border:1.5px solid #d4af37">
+      <div class="sb-text">
+        <h1>Domus Rentals</h1>
+        <p>CRM Renta Corta</p>
+      </div>
+    `;
+  }
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial || navComercial.dataset.v4) return;
+  navComercial.dataset.v4 = 'true';
+  navComercial.innerHTML = `
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('propietarios')">
+        <span class="sb-section-arrow" id="arr-propietarios">▼</span>
+        <span>👥 Propietarios</span>
+      </div>
+      <div class="sb-section-items" id="sb-propietarios">
+        <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb">0</span></div>
+        <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+        <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+        <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('amoblados')">
+        <span class="sb-section-arrow collapsed" id="arr-amoblados">▶</span>
+        <span>🛋️ Amoblados</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-amoblados">
+        <div class="nav-i" onclick="showView('amoblados-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('documentos')">
+        <span class="sb-section-arrow collapsed" id="arr-documentos">▶</span>
+        <span>📄 Documentos a enviar</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-documentos">
+        <div class="nav-i" onclick="showView('documentos-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('marketing')">
+        <span class="sb-section-arrow collapsed" id="arr-marketing">▶</span>
+        <span>📣 Marketing</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-marketing">
+        <div class="nav-i" onclick="showView('marketing-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="nav-s" style="margin-top:8px">Herramientas</div>
+    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+  `;
+  const nbEl = navComercial.querySelector('#nb');
+  if(nbEl) nbEl.textContent = leads.length;
+}
+setTimeout(()=>{ reorganizarSidebarV4(); }, 2500);
+
+// 2) Criterios V4 (lista reducida + Amoblado Domus master)
+window.criteriosV4 = [
+  {id:'airbnb_amoblado_domus', label:'✅ Amoblado por Domus Rentals', master:true},
+  {id:'airbnb_sabanas', label:'🛏️ Sábanas limpias en cada cama', countField:'airbnb_sabanas_count'},
+  {id:'airbnb_toallas', label:'🧖 Toallas por huésped', countField:'airbnb_toallas_count'},
+  {id:'airbnb_wifi', label:'📶 WiFi gratuito y estable'},
+  {id:'airbnb_cocina', label:'🍳 Cocina equipada (utensilios básicos)'},
+  {id:'airbnb_microondas', label:'⚡ Microondas funcional'},
+  {id:'airbnb_hervidor', label:'☕ Hervidor o cafetera'},
+  {id:'airbnb_refri', label:'🧊 Refrigerador'},
+  {id:'airbnb_loza', label:'🍽️ Loza, vasos y cubertería completa'},
+  {id:'airbnb_calef', label:'🔥 Calefacción funcional'},
+  {id:'airbnb_aire', label:'❄️ Aire acondicionado o ventilador'},
+  {id:'airbnb_secador', label:'💨 Secador de pelo'},
+  {id:'airbnb_plancha', label:'👔 Plancha + tabla de planchar'},
+  {id:'airbnb_perchas', label:'🧥 Closet con perchas'},
+  {id:'airbnb_checkin', label:'🔑 Self check-in (lockbox o smart lock)'},
+];
+function marcarTodosCriterios(id){
+  const l = leads.find(x=>x.id===id);
+  if(!l) return;
+  window.criteriosV4.forEach(it=>{ if(!it.master) l[it.id] = true; });
+  saveData();
+}
+function renderCriteriosV4(l){
+  const items = window.criteriosV4;
+  const amobladoDomus = !!l.airbnb_amoblado_domus;
+  const nonMaster = items.filter(it=>!it.master);
+  const ok = nonMaster.filter(it=>amobladoDomus || l[it.id]).length;
+  const total = nonMaster.length;
+  const pct = Math.round(ok/total*100);
+  let html = `<div style="background:${pct===100?'var(--green-l)':'var(--bg)'};border:2px solid ${pct===100?'rgba(22,163,74,.25)':'var(--border)'};border-radius:var(--rsm);padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+    <div><div class="N" style="font-size:13px;font-weight:900;color:${pct===100?'var(--green-d)':'var(--text)'}">${pct===100?'✅ Cumple todos los criterios Airbnb':'Criterios Airbnb cumplidos'}</div>
+    <div style="font-size:11px;color:var(--text2)">${ok} de ${total}</div></div>
+    <div class="N" style="font-size:22px;font-weight:900;color:${pct===100?'var(--green)':'var(--purple)'}">${pct}%</div>
+  </div>`;
+  html += `<div style="font-size:10px;color:var(--text2);font-weight:700;padding:6px 0 10px;font-style:italic">Lista basada en lo que Airbnb solicita como amenidades esenciales</div>`;
+  const master = items.find(it=>it.master);
+  if(master){
+    html += `<div style="background:${l.airbnb_amoblado_domus?'var(--purple-l)':'var(--surface2)'};border:2px solid ${l.airbnb_amoblado_domus?'var(--purple)':'var(--border)'};border-radius:var(--rsm);padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="document.getElementById('cb-${master.id}').click()">
+      <input type="checkbox" id="cb-${master.id}" ${l.airbnb_amoblado_domus?'checked':''} style="width:20px;height:20px;accent-color:var(--purple);cursor:pointer" onclick="event.stopPropagation()" onchange="updF(${l.id},'${master.id}',this.checked); if(this.checked) marcarTodosCriterios(${l.id}); renderModal()">
+      <div>
+        <div style="font-size:13px;font-weight:900;font-family:'Nunito',sans-serif;color:${l.airbnb_amoblado_domus?'var(--purple-d)':'var(--text)'}">${master.label}</div>
+        <div style="font-size:10px;color:var(--text2);margin-top:2px">Marca si Domus Rentals amobló el depto. Bloquea los demás criterios.</div>
+      </div>
+    </div>`;
+  }
+  nonMaster.forEach(it=>{
+    const checked = amobladoDomus || !!l[it.id];
+    const disabled = amobladoDomus;
+    const count = l[it.countField] || '';
+    html += `<div class="flow-step ${checked?'done':''}" style="${disabled?'opacity:.55;':''}">
+      <input type="checkbox" ${checked?'checked':''} ${disabled?'disabled':''} onchange="updF(${l.id},'${it.id}',this.checked);renderModal()">
+      <div class="fs-label" style="flex:1">${it.label}</div>`;
+    if(it.countField){
+      html += `<input type="number" min="0" value="${count}" placeholder="¿cuántas?" ${disabled?'disabled':''} style="width:95px;padding:4px 8px;font-size:11px;border:2px solid var(--border2);border-radius:6px;text-align:center;background:var(--surface);font-family:inherit" onchange="updF(${l.id},'${it.countField}',this.value)" onclick="event.stopPropagation()">`;
+    }
+    html += `</div>`;
+  });
+  html += `<div class="field" style="margin-top:18px"><label>📝 Notas sobre criterios</label>
+    <textarea rows="4" placeholder="Observaciones adicionales..." onchange="updF(${l.id},'criterios_notas',this.value)">${l.criterios_notas||''}</textarea>
+  </div>`;
+  return html;
+}
+
+// 3) Modal: agregar clave en Info + reemplazar criterios
+const __origRenderModal_v4 = renderModal;
+renderModal = function(){
+  __origRenderModal_v4();
+  setTimeout(()=>{
+    const l = leads.find(x => x.id === selectedId);
+    if(!l) return;
+    const infoTab = document.getElementById('ti');
+    if(infoTab && !infoTab.querySelector('.clave-acceso-field')){
+      const claveField = document.createElement('div');
+      claveField.className = 'field clave-acceso-field';
+      claveField.innerHTML = `
+        <label>🔑 Clave de acceso inicial</label>
+        <input value="${(l.clave_acceso_inicial||'').replace(/"/g,'&quot;')}" placeholder="Clave del depto / lockbox / WiFi inicial..." onchange="updF(${l.id},'clave_acceso_inicial',this.value)">
+      `;
+      infoTab.appendChild(claveField);
+    }
+    const criteriosTab = document.getElementById('tcriterios');
+    if(criteriosTab){
+      criteriosTab.innerHTML = renderCriteriosV4(l);
+    }
+  }, 300);
+};
+
+// 4) Alertas de propietarios pendientes en Pipeline
+function renderAlertas(){
+  const stageOrder = {
+    'prospecto': 'agendar reunión',
+    'reunion_agendada': 'realizar la reunión',
+    'reunion_cursada': 'definir tipo de contrato',
+    'resultado_reunion': 'enviar solicitud de datos',
+    'correo_datos': 'enviar contrato administración',
+    'contrato_enviado': 'firmar contrato',
+    'contrato_firmado': 'firmar contrato amoblado',
+    'amob_contrato_firmado': 'enviar contrato amoblado',
+    'amob_contrato_enviado': 'iniciar amoblado',
+    'amob_proceso': 'recibir pago',
+    'amob_pagado': 'tomar fotos',
+    'foto_tomada': 'editar fotos',
+    'foto_editada': 'publicar en plataformas',
+    'foto_publicada': 'enviar correo de bienvenida',
+  };
+  const pendientes = leads.filter(l => l.stage !== 'cliente_activo');
+  if(pendientes.length === 0) return '';
+  pendientes.sort((a,b) => pct(b) - pct(a));
+  const top = pendientes.slice(0, 5);
+  let html = `<div style="background:linear-gradient(135deg,#fff7ed,#fef3c7);border:2px solid var(--amber);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:22px">🔔</span>
+      <div style="flex:1">
+        <div class="N" style="font-size:14px;font-weight:900;color:var(--amber-d)">Propietarios pendientes (${pendientes.length})</div>
+        <div style="font-size:11px;color:var(--text2)">Estos departamentos no están al 100%. Avanza al siguiente paso.</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">`;
+  top.forEach(l => {
+    const p = pct(l);
+    const next = stageOrder[l.stage] || 'continuar';
+    const currentLabel = stageInfo(l.stage).label;
+    html += `<div onclick="openLead(${l.id})" style="background:var(--surface);border:2px solid var(--border);border-radius:var(--rsm);padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .13s" onmouseover="this.style.transform='translateX(3px)';this.style.borderColor='var(--amber)'" onmouseout="this.style.transform='';this.style.borderColor='var(--border)'">
+      <div style="flex:1;min-width:0">
+        <div class="N" style="font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+        <div style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.address || '—'}</div>
+      </div>
+      <div style="font-size:9px;font-weight:800;background:var(--amber-l);color:var(--amber-d);padding:3px 8px;border-radius:20px;flex-shrink:0">${currentLabel}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--text2);font-style:italic;flex-shrink:0">→ ${next}</div>
+      <div style="font-size:12px;font-weight:900;font-family:'Nunito',sans-serif;color:${pctColor(p)};flex-shrink:0;min-width:34px;text-align:right">${p}%</div>
+    </div>`;
+  });
+  if(pendientes.length > 5){
+    html += `<div style="font-size:11px;color:var(--text2);text-align:center;padding:6px 0;font-style:italic">+ ${pendientes.length - 5} más pendientes</div>`;
+  }
+  html += `</div></div>`;
+  return html;
+}
+const __origRenderPipeline_v4 = renderPipeline;
+renderPipeline = function(c){
+  __origRenderPipeline_v4(c);
+  const alertas = renderAlertas();
+  if(alertas) c.innerHTML = alertas + c.innerHTML;
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
