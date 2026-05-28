@@ -1737,6 +1737,255 @@ function cleanupOldSectionsFromModal(l){
     invInput.parentNode.style.display = 'none';
   }
 }
+  // ═══ CAMBIOS V3: Sidebar / Correos / Criterios Airbnb ═══
+
+// 1) REORGANIZAR SIDEBAR — 4 secciones expandibles
+function reorganizarSidebar(){
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial || navComercial.dataset.reorganized) return;
+  navComercial.dataset.reorganized = 'true';
+  navComercial.innerHTML = `
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('propietarios')">
+        <span class="sb-section-arrow" id="arr-propietarios">▼</span>
+        <span>👥 Propietarios</span>
+      </div>
+      <div class="sb-section-items" id="sb-propietarios">
+        <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb">0</span></div>
+        <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+        <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+        <div class="nav-i" onclick="showView('equip',this)"><i class="ti ti-tool"></i>Equip. y Claves</div>
+        <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('amoblados')">
+        <span class="sb-section-arrow collapsed" id="arr-amoblados">▶</span>
+        <span>🛋️ Amoblados</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-amoblados">
+        <div class="nav-i" onclick="showView('amoblados-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('documentos')">
+        <span class="sb-section-arrow collapsed" id="arr-documentos">▶</span>
+        <span>📄 Documentos a enviar</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-documentos">
+        <div class="nav-i" onclick="showView('documentos-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('marketing')">
+        <span class="sb-section-arrow collapsed" id="arr-marketing">▶</span>
+        <span>📣 Marketing</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-marketing">
+        <div class="nav-i" onclick="showView('marketing-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="nav-s" style="margin-top:8px">Herramientas</div>
+    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+  `;
+  const nbEl = navComercial.querySelector('#nb');
+  if(nbEl) nbEl.textContent = leads.length;
+}
+function toggleSidebarSection(sec){
+  const items = document.getElementById('sb-' + sec);
+  const arrow = document.getElementById('arr-' + sec);
+  if(!items || !arrow) return;
+  const isCollapsed = items.classList.toggle('hidden');
+  arrow.textContent = isCollapsed ? '▶' : '▼';
+  arrow.classList.toggle('collapsed', isCollapsed);
+}
+setTimeout(()=>{ reorganizarSidebar(); }, 1800);
+
+// Estilos sidebar
+const stylesV3 = document.createElement('style');
+stylesV3.textContent = `
+.sb-section{border-bottom:1px solid var(--border)}
+.sb-section-head{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:11px;font-weight:900;font-family:'Nunito',sans-serif;color:var(--text);cursor:pointer;text-transform:uppercase;letter-spacing:.04em;background:var(--surface2);transition:background .13s;user-select:none}
+.sb-section-head:hover{background:var(--bg)}
+.sb-section-arrow{font-size:9px;color:var(--text3);width:8px;display:inline-block;text-align:center}
+.sb-section-items{padding:4px 0 6px}
+.sb-section-items.hidden{display:none}
+`;
+document.head.appendChild(stylesV3);
+
+// 2) PLACEHOLDERS para las nuevas secciones
+const __origShowView_v3 = showView;
+showView = function(v, el){
+  const placeholders = {
+    'amoblados-home': {
+      titulo: '🛋️ Amoblados',
+      emoji: '🛋️',
+      texto: 'Aquí gestionarás el inventario de amoblados, proveedores, pedidos pendientes y tracking de instalación por depto.',
+      cards: ['📋|Inventario por depto','🛒|Pedidos pendientes','📦|Stock y proveedores','🔨|Instalaciones','💰|Costos y presupuestos','✅|Checklist de entrega']
+    },
+    'documentos-home': {
+      titulo: '📄 Documentos a enviar',
+      emoji: '📄',
+      texto: 'Aquí gestionarás todos los documentos que debes enviar a propietarios: contratos, informes mensuales, certificados de pago.',
+      cards: ['📝|Contratos pendientes','📊|Informes mensuales','💸|Certificados de pago','📅|Documentos por vencer','✉️|Enviar por email','📂|Archivo histórico']
+    },
+    'marketing-home': {
+      titulo: '📣 Marketing',
+      emoji: '📣',
+      texto: 'Aquí gestionarás todas las acciones de marketing: campañas, redes sociales, métricas, contenido y captación de nuevos propietarios.',
+      cards: ['📈|Captación de leads','📱|Redes sociales','🎯|Campañas activas','✍️|Calendario de contenido','📊|Métricas y ROI','🎨|Material gráfico']
+    }
+  };
+  if(placeholders[v]){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    const p = placeholders[v];
+    document.getElementById('vtitle').textContent = p.titulo;
+    document.getElementById('mc').innerHTML = `
+      <div class="dept-placeholder">
+        <div class="dept-placeholder-emoji">${p.emoji}</div>
+        <div class="dept-placeholder-title">Próximamente</div>
+        <div class="dept-placeholder-text">${p.texto}</div>
+        <div class="dept-placeholder-grid">
+          ${p.cards.map(c=>{ const [e,t]=c.split('|'); return `<div class="dept-placeholder-card"><span class="e">${e}</span>${t}</div>`; }).join('')}
+        </div>
+      </div>`;
+    return;
+  }
+  __origShowView_v3(v, el);
+};
+
+// 3) CORREOS EDITABLES + AGREGAR + BORRAR
+function getCorreos(){
+  const stored = localStorage.getItem('correos_tipo_v2');
+  if(stored){ try { return JSON.parse(stored); } catch(e){} }
+  return CORREOS.map(c=>({...c}));
+}
+function saveCorreos(arr){ localStorage.setItem('correos_tipo_v2', JSON.stringify(arr)); }
+renderCorreos = function(c){
+  const correos = getCorreos();
+  let html = '';
+  correos.forEach((co, i)=>{
+    const esc = s => (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    html += `
+    <div class="mc" id="correo-${i}">
+      <div class="mh">
+        <div class="mi" style="background:${co.color||'#ede9fe'}">${co.emoji||'📧'}</div>
+        <div style="flex:1">
+          <input value="${esc(co.titulo)}" style="font-size:13px;font-weight:900;font-family:'Nunito',sans-serif;background:none;border:none;width:100%;color:var(--text);padding:2px 0;outline:none;border-bottom:1px dashed transparent" onfocus="this.style.borderBottomColor='var(--purple)'" onblur="this.style.borderBottomColor='transparent'" onchange="updateCorreo(${i},'titulo',this.value)">
+          <input value="${esc(co.desc)}" placeholder="Descripción breve..." style="font-size:10px;color:var(--text2);background:none;border:none;width:100%;padding:2px 0;outline:none;font-family:'Nunito Sans',sans-serif;border-bottom:1px dashed transparent" onfocus="this.style.borderBottomColor='var(--purple)'" onblur="this.style.borderBottomColor='transparent'" onchange="updateCorreo(${i},'desc',this.value)">
+        </div>
+        <button onclick="deleteCorreo(${i})" title="Borrar correo" style="font-size:13px;background:none;border:2px solid var(--border2);border-radius:8px;cursor:pointer;padding:5px 10px;color:var(--red)" onmouseover="this.style.background='var(--red-l)'" onmouseout="this.style.background='none'">🗑️</button>
+      </div>
+      <textarea style="font-family:inherit;font-size:12px;color:var(--text);line-height:1.7;width:100%;min-height:180px;resize:vertical;border:2px solid var(--border);padding:12px 14px;border-radius:var(--rsm);background:var(--bg);outline:none" onfocus="this.style.borderColor='var(--purple)'" onblur="this.style.borderColor='var(--border)'" onchange="updateCorreo(${i},'body',this.value)">${co.body||''}</textarea>
+      <div style="margin-top:10px;display:flex;gap:6px;align-items:center">
+        <button class="btn btn-sm btn-p" onclick="copyCorreoV3(${i})"><i class="ti ti-copy"></i>Copiar</button>
+        <span style="font-size:10px;color:var(--text3);font-style:italic">Los cambios se guardan automáticamente</span>
+      </div>
+    </div>`;
+  });
+  html += `<div style="text-align:center;margin-top:20px;padding:20px;border:2px dashed var(--border2);border-radius:var(--r)">
+    <button class="btn btn-p" onclick="addCorreo()" style="padding:11px 28px"><i class="ti ti-plus"></i>Agregar nuevo correo tipo</button>
+  </div>`;
+  c.innerHTML = html;
+};
+function updateCorreo(i, field, val){
+  const correos = getCorreos();
+  if(correos[i]){ correos[i][field] = val; saveCorreos(correos); }
+}
+function deleteCorreo(i){
+  if(!confirm('¿Borrar este correo tipo?')) return;
+  const correos = getCorreos();
+  correos.splice(i, 1);
+  saveCorreos(correos);
+  renderCorreos(document.getElementById('mc'));
+  toast('🗑️ Correo eliminado');
+}
+function addCorreo(){
+  const correos = getCorreos();
+  const emojis = ['📧','📩','💌','📨','✉️','📮','📋','📝'];
+  const colors = ['#ede9fe','#e0f2fe','#dcfce7','#fef3c7','#fce7f3','#ccfbf1','#ffedd5','#dbeafe'];
+  correos.push({
+    emoji: emojis[correos.length % emojis.length],
+    color: colors[correos.length % colors.length],
+    titulo: 'Nuevo correo',
+    desc: 'Descripción del correo',
+    body: 'Hola [Nombre],\n\nEscribe aquí el contenido de tu correo tipo.\n\nSaludos,\n[Tu nombre]'
+  });
+  saveCorreos(correos);
+  renderCorreos(document.getElementById('mc'));
+  toast('➕ Correo nuevo agregado');
+  setTimeout(()=>{
+    const newEl = document.getElementById('correo-' + (correos.length-1));
+    if(newEl) newEl.scrollIntoView({behavior:'smooth', block:'center'});
+  }, 100);
+}
+function copyCorreoV3(i){
+  const correos = getCorreos();
+  if(correos[i] && navigator.clipboard){
+    navigator.clipboard.writeText(correos[i].body);
+    toast('📋 Copiado al portapapeles');
+  }
+}
+
+// 4) CRITERIOS AIRBNB — Reemplazar lista de criterios mínimos
+window.airbnbCriteria = [
+  {id:'airbnb_sabanas', label:'🛏️ Sábanas limpias en cada cama'},
+  {id:'airbnb_toallas', label:'🧖 Toallas por huésped (1 baño + 1 mano)'},
+  {id:'airbnb_jabon', label:'🧼 Jabón de manos y corporal'},
+  {id:'airbnb_papel', label:'🧻 Papel higiénico (mínimo 2 rollos extra)'},
+  {id:'airbnb_shampoo', label:'🧴 Shampoo + acondicionador'},
+  {id:'airbnb_wifi', label:'📶 WiFi gratuito y estable'},
+  {id:'airbnb_cocina', label:'🍳 Cocina equipada (utensilios básicos)'},
+  {id:'airbnb_microondas', label:'⚡ Microondas funcional'},
+  {id:'airbnb_hervidor', label:'☕ Hervidor o cafetera'},
+  {id:'airbnb_refri', label:'🧊 Refrigerador'},
+  {id:'airbnb_loza', label:'🍽️ Loza, vasos y cubertería completa'},
+  {id:'airbnb_calef', label:'🔥 Calefacción funcional'},
+  {id:'airbnb_aire', label:'❄️ Aire acondicionado o ventilador'},
+  {id:'airbnb_secador', label:'💨 Secador de pelo'},
+  {id:'airbnb_plancha', label:'👔 Plancha + tabla de planchar'},
+  {id:'airbnb_perchas', label:'🧥 Closet con perchas'},
+  {id:'airbnb_tv', label:'📺 TV con cable o streaming'},
+  {id:'airbnb_humo', label:'🚨 Detector de humo funcional'},
+  {id:'airbnb_extintor', label:'🧯 Extintor de incendios'},
+  {id:'airbnb_botiquin', label:'⛑️ Botiquín de primeros auxilios'},
+  {id:'airbnb_trabajo', label:'💼 Espacio para trabajar con WiFi'},
+  {id:'airbnb_checkin', label:'🔑 Self check-in (lockbox o smart lock)'},
+];
+// Interceptar renderModal para reemplazar criterios con Airbnb
+const __origRenderModal_v3 = renderModal;
+renderModal = function(){
+  __origRenderModal_v3();
+  setTimeout(()=>{
+    const l = leads.find(x => x.id === selectedId);
+    if(!l) return;
+    const criteriosTab = document.getElementById('tcriterios');
+    if(!criteriosTab) return;
+    const items = window.airbnbCriteria;
+    const total = items.length;
+    const ok = items.filter(it=>l[it.id]).length;
+    const pct = Math.round(ok/total*100);
+    criteriosTab.innerHTML = `
+      <div style="background:${pct===100?'var(--green-l)':'var(--bg)'};border:2px solid ${pct===100?'rgba(22,163,74,.25)':'var(--border)'};border-radius:var(--rsm);padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+        <div><div class="N" style="font-size:13px;font-weight:900;color:${pct===100?'var(--green-d)':'var(--text)'}">${pct===100?'✅ Cumple todos los criterios Airbnb':'Criterios Airbnb cumplidos'}</div>
+        <div style="font-size:11px;color:var(--text2)">${ok} de ${total}</div></div>
+        <div class="N" style="font-size:22px;font-weight:900;color:${pct===100?'var(--green)':'var(--purple)'}">${pct}%</div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:700;padding:6px 0 10px;font-style:italic">Lista basada en las amenidades esenciales que Airbnb solicita</div>
+      ${items.map(it=>`
+        <div class="flow-step ${l[it.id]?'done':''}">
+          <input type="checkbox" ${l[it.id]?'checked':''} onchange="updF(${l.id},'${it.id}',this.checked);renderModal()">
+          <div class="fs-label">${it.label}</div>
+        </div>
+      `).join('')}
+      <div class="field" style="margin-top:18px"><label>📝 Notas sobre criterios</label>
+        <textarea rows="4" placeholder="Observaciones adicionales sobre el depto..." onchange="updF(${l.id},'criterios_notas',this.value)">${l.criterios_notas||''}</textarea>
+      </div>
+    `;
+  }, 250);
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
