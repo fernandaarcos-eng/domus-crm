@@ -1534,6 +1534,209 @@ renderResumen = function(c){
     </div>
   `;
 };
+  // ═══ MEJORAS UX (Pipeline cerrado + 3 tabs nuevas + cleanup) ═══
+
+// 1) Pipeline: todos los grupos cerrados por defecto
+const __origRenderPipeline_closed = renderPipeline;
+renderPipeline = function(c){
+  GROUPS.forEach(g=>{
+    if(openGroups[g.id]===undefined) openGroups[g.id] = false;
+  });
+  __origRenderPipeline_closed(c);
+};
+
+// 2) sTab: agregar soporte a las nuevas tabs
+sTab = function(name, el){
+  const map = {info:'ti', depto:'tdepto', flow:'tflow', fotos:'tfotos', hist:'thist', edit:'tedit', docs:'tdocs', cuenta:'tcuenta', criterios:'tcriterios'};
+  Object.values(map).forEach(id=>{ const d=document.getElementById(id); if(d) d.style.display='none'; });
+  const target = map[name];
+  const d = document.getElementById(target);
+  if(d) d.style.display='block';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  if(el) el.classList.add('active');
+};
+
+// 3) Funciones para subir/borrar documentos PDF
+function uploadDoc(id, field, input){
+  const l = leads.find(x => x.id === id);
+  if(!l || !input.files[0]) return;
+  const file = input.files[0];
+  if(file.size > 5*1024*1024){ toast('⚠️ Archivo muy pesado (máx 5 MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = e => {
+    l[field] = {name: file.name, type: file.type, size: file.size, data: e.target.result};
+    saveData();
+    renderModal();
+    toast('📄 Documento guardado');
+  };
+  reader.readAsDataURL(file);
+}
+function delDoc(id, field){
+  if(!confirm('¿Borrar este documento?')) return;
+  const l = leads.find(x => x.id === id);
+  if(!l) return;
+  l[field] = null;
+  saveData();
+  renderModal();
+  toast('🗑️ Documento borrado');
+}
+
+// 4) Interceptor de renderModal: agregar tabs nuevas + ocultar secciones viejas
+const __origRenderModal_tabs = renderModal;
+renderModal = function(){
+  __origRenderModal_tabs();
+  setTimeout(()=>{
+    const l = leads.find(x => x.id === selectedId);
+    if(!l) return;
+    addNewTabsToModal(l);
+    cleanupOldSectionsFromModal(l);
+  }, 130);
+};
+
+function addNewTabsToModal(l){
+  const tabsContainer = document.querySelector('.tabs');
+  if(!tabsContainer || document.getElementById('tdocs')) return;
+  const editTabBtn = Array.from(tabsContainer.children).find(t=>t.textContent.includes('Editar'));
+  
+  ['docs|📄 Docs','cuenta|💳 Cuenta','criterios|📐 Criterios'].forEach(spec=>{
+    const [id, label] = spec.split('|');
+    const btn = document.createElement('button');
+    btn.className = 'tab';
+    btn.textContent = label;
+    btn.onclick = function(){ sTab(id, this); };
+    if(editTabBtn) tabsContainer.insertBefore(btn, editTabBtn);
+    else tabsContainer.appendChild(btn);
+  });
+  
+  const parent = document.getElementById('tedit')?.parentNode;
+  if(!parent) return;
+  
+  // Tab: DOCUMENTOS
+  const docs = document.createElement('div');
+  docs.id = 'tdocs';
+  docs.style.display = 'none';
+  docs.innerHTML = `
+    <div class="field"><label>📄 Contrato de administración</label>
+      ${l.doc_contrato_admin ? `<div class="contrato-file"><i class="ti ti-file-check"></i>${l.doc_contrato_admin.name}<span class="contrato-del" onclick="delDoc(${l.id},'doc_contrato_admin')"><i class="ti ti-x"></i></span></div>` : ''}
+      <label class="voucher-zone" style="display:block;cursor:pointer;background:var(--blue-l);border-color:var(--blue);padding:14px">
+        <i class="ti ti-upload" style="color:var(--blue-d);font-size:14px;vertical-align:-2px"></i>
+        <span style="color:var(--blue-d);font-weight:700;font-size:12px">${l.doc_contrato_admin?'Cambiar archivo':'Subir PDF/imagen'}</span>
+        <input type="file" accept=".pdf,image/*" style="display:none" onchange="uploadDoc(${l.id},'doc_contrato_admin',this)">
+      </label>
+    </div>
+    <div class="field"><label>📄 Contrato de amoblado</label>
+      ${l.doc_contrato_amob ? `<div class="contrato-file"><i class="ti ti-file-check"></i>${l.doc_contrato_amob.name}<span class="contrato-del" onclick="delDoc(${l.id},'doc_contrato_amob')"><i class="ti ti-x"></i></span></div>` : ''}
+      <label class="voucher-zone" style="display:block;cursor:pointer;background:var(--purple-l);border-color:var(--purple);padding:14px">
+        <i class="ti ti-upload" style="color:var(--purple-d);font-size:14px;vertical-align:-2px"></i>
+        <span style="color:var(--purple-d);font-weight:700;font-size:12px">${l.doc_contrato_amob?'Cambiar archivo':'Subir PDF/imagen'}</span>
+        <input type="file" accept=".pdf,image/*" style="display:none" onchange="uploadDoc(${l.id},'doc_contrato_amob',this)">
+      </label>
+    </div>
+    <div style="font-size:11px;color:var(--text3);padding:8px 0;font-style:italic">Max 5 MB por archivo. Formatos: PDF, JPG, PNG.</div>
+  `;
+  parent.appendChild(docs);
+  
+  // Tab: DATOS DE CUENTA
+  const cuenta = document.createElement('div');
+  cuenta.id = 'tcuenta';
+  cuenta.style.display = 'none';
+  cuenta.innerHTML = `
+    <div class="field"><label>👤 Titular de la cuenta</label>
+      <input value="${l.cuenta_titular||''}" placeholder="Nombre completo del titular" onchange="updF(${l.id},'cuenta_titular',this.value)">
+    </div>
+    <div class="field"><label>🪪 RUT del titular</label>
+      <input value="${l.cuenta_rut||''}" placeholder="12.345.678-9" onchange="updF(${l.id},'cuenta_rut',this.value)">
+    </div>
+    <div class="frow">
+      <div class="field"><label>🏦 Banco</label>
+        <input value="${l.cuenta_banco||''}" placeholder="Banco" onchange="updF(${l.id},'cuenta_banco',this.value)">
+      </div>
+      <div class="field"><label>📋 Tipo de cuenta</label>
+        <select onchange="updF(${l.id},'cuenta_tipo',this.value)">
+          <option value="">—</option>
+          <option ${l.cuenta_tipo==='Cuenta Corriente'?'selected':''}>Cuenta Corriente</option>
+          <option ${l.cuenta_tipo==='Cuenta Vista'?'selected':''}>Cuenta Vista</option>
+          <option ${l.cuenta_tipo==='Cuenta de Ahorro'?'selected':''}>Cuenta de Ahorro</option>
+          <option ${l.cuenta_tipo==='Cuenta Rut'?'selected':''}>Cuenta Rut</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>🔢 Número de cuenta</label>
+      <input value="${l.cuenta_numero||''}" placeholder="Número de cuenta" onchange="updF(${l.id},'cuenta_numero',this.value)">
+    </div>
+    <div class="field"><label>📧 Email asociado a la cuenta</label>
+      <input value="${l.cuenta_email||''}" placeholder="email@ejemplo.com" onchange="updF(${l.id},'cuenta_email',this.value)">
+    </div>
+    <div class="field"><label>📝 Notas adicionales</label>
+      <textarea rows="3" placeholder="Información extra sobre la cuenta..." onchange="updF(${l.id},'cuenta_notas',this.value)">${l.cuenta_notas||''}</textarea>
+    </div>
+  `;
+  parent.appendChild(cuenta);
+  
+  // Tab: CRITERIOS MÍNIMOS
+  const criterios = document.createElement('div');
+  criterios.id = 'tcriterios';
+  criterios.style.display = 'none';
+  const items = [
+    {id:'crit_ubicacion', label:'📍 Ubicación bien conectada'},
+    {id:'crit_metro', label:'🚇 Cerca de metro/transporte'},
+    {id:'crit_dorm', label:'🛏️ Dormitorio en buen estado'},
+    {id:'crit_bano', label:'🚿 Baño completo y funcional'},
+    {id:'crit_wifi', label:'📶 WiFi instalado o pendiente'},
+    {id:'crit_cocina', label:'🍳 Cocina equipada'},
+    {id:'crit_lavadora', label:'🧺 Lavadora propia o de edificio'},
+    {id:'crit_calef', label:'🔥 Calefacción funcional'},
+    {id:'crit_aire', label:'💨 Ventilación adecuada'},
+    {id:'crit_amueblado', label:'🛋️ Amoblado completo'},
+    {id:'crit_limpieza', label:'✨ Buen estado de limpieza'},
+    {id:'crit_admin', label:'🏢 Acceso a administración del edificio OK'},
+  ];
+  const totalCrit = items.length;
+  const okCrit = items.filter(it=>l[it.id]).length;
+  const pctCrit = Math.round(okCrit/totalCrit*100);
+  criterios.innerHTML = `
+    <div style="background:${pctCrit===100?'var(--green-l)':'var(--bg)'};border:2px solid ${pctCrit===100?'rgba(22,163,74,.25)':'var(--border)'};border-radius:var(--rsm);padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+      <div><div class="N" style="font-size:13px;font-weight:900;color:${pctCrit===100?'var(--green-d)':'var(--text)'}">${pctCrit===100?'✅ Cumple todos los criterios':'Criterios cumplidos'}</div>
+      <div style="font-size:11px;color:var(--text2)">${okCrit} de ${totalCrit}</div></div>
+      <div class="N" style="font-size:22px;font-weight:900;color:${pctCrit===100?'var(--green)':'var(--purple)'}">${pctCrit}%</div>
+    </div>
+    ${items.map(it=>`
+      <div class="flow-step ${l[it.id]?'done':''}">
+        <input type="checkbox" ${l[it.id]?'checked':''} onchange="updF(${l.id},'${it.id}',this.checked);renderModal()">
+        <div class="fs-label">${it.label}</div>
+      </div>
+    `).join('')}
+    <div class="field" style="margin-top:18px"><label>📝 Notas sobre criterios</label>
+      <textarea rows="4" placeholder="Observaciones adicionales sobre el depto..." onchange="updF(${l.id},'criterios_notas',this.value)">${l.criterios_notas||''}</textarea>
+    </div>
+  `;
+  parent.appendChild(criterios);
+}
+
+function cleanupOldSectionsFromModal(l){
+  const deptoTab = document.getElementById('tdepto');
+  if(!deptoTab) return;
+  Array.from(deptoTab.querySelectorAll('.field')).forEach(f=>{
+    const label = f.querySelector('label');
+    if(!label) return;
+    const txt = label.textContent.trim();
+    if(txt.includes('Amenidades') || 
+       txt.includes('Claves de acceso') || 
+       txt.includes('Equipamiento inicial') ||
+       txt.includes('Secador de pelo') ||
+       txt.includes('Plancha de ropa')){
+      f.style.display = 'none';
+    }
+  });
+  const invHeader = Array.from(deptoTab.querySelectorAll('.sh')).find(s=>s.textContent.includes('Inventario'));
+  if(invHeader) invHeader.style.display = 'none';
+  const invList = document.getElementById('inv-list-' + l.id);
+  if(invList) invList.style.display = 'none';
+  const invInput = document.getElementById('inv-new-' + l.id);
+  if(invInput && invInput.parentNode && invInput.parentNode.parentNode){
+    invInput.parentNode.style.display = 'none';
+  }
+}
 // Load from cloud on startup
 loadFromCloud();
 </script>
