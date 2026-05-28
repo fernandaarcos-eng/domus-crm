@@ -2199,6 +2199,549 @@ renderPipeline = function(c){
   const alertas = renderAlertas();
   if(alertas) c.innerHTML = alertas + c.innerHTML;
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ CAMBIOS V5: Alianzas + Fotografía + Amoblados ════════
+// ═══════════════════════════════════════════════════════════
+
+// ─── SIDEBAR: agregar "Alianzas" en Propietarios y "Fotografía" en Marketing ───
+function reorganizarSidebarV5(){
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial || navComercial.dataset.v5) return;
+  navComercial.dataset.v5 = 'true';
+  navComercial.innerHTML = `
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('propietarios')">
+        <span class="sb-section-arrow" id="arr-propietarios">▼</span>
+        <span>👥 Propietarios</span>
+      </div>
+      <div class="sb-section-items" id="sb-propietarios">
+        <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb">0</span></div>
+        <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+        <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+        <div class="nav-i" onclick="showView('alianzas',this)"><i class="ti ti-handshake"></i>Alianzas</div>
+        <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('amoblados')">
+        <span class="sb-section-arrow collapsed" id="arr-amoblados">▶</span>
+        <span>🛋️ Amoblados</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-amoblados">
+        <div class="nav-i" onclick="showView('amoblados-cotizador',this)"><i class="ti ti-calculator"></i>Cotizador</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('documentos')">
+        <span class="sb-section-arrow collapsed" id="arr-documentos">▶</span>
+        <span>📄 Documentos a enviar</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-documentos">
+        <div class="nav-i" onclick="showView('documentos-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('marketing')">
+        <span class="sb-section-arrow collapsed" id="arr-marketing">▶</span>
+        <span>📣 Marketing</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-marketing">
+        <div class="nav-i" onclick="showView('fotografia',this)"><i class="ti ti-camera"></i>Fotografía</div>
+      </div>
+    </div>
+    <div class="nav-s" style="margin-top:8px">Herramientas</div>
+    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+  `;
+  const nbEl = navComercial.querySelector('#nb');
+  if(nbEl) nbEl.textContent = leads.length;
+}
+setTimeout(()=>{ reorganizarSidebarV5(); }, 3000);
+
+// ─── INTERCEPTAR showView para las nuevas vistas ───
+const __origShowView_v5 = showView;
+showView = function(v, el){
+  if(v === 'alianzas'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'alianzas';
+    document.getElementById('vtitle').textContent = '🤝 Alianzas';
+    renderAlianzas(document.getElementById('mc'));
+    return;
+  }
+  if(v === 'fotografia'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'fotografia';
+    document.getElementById('vtitle').textContent = '📸 Fotografía';
+    renderFotografia(document.getElementById('mc'));
+    return;
+  }
+  if(v === 'amoblados-cotizador'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'amoblados-cotizador';
+    document.getElementById('vtitle').textContent = '🛋️ Cotizador de Amoblados';
+    renderAmobladosCotizador(document.getElementById('mc'));
+    return;
+  }
+  __origShowView_v5(v, el);
+};
+
+// ─────────────────────────────────────────────────
+// 1) ALIANZAS
+// ─────────────────────────────────────────────────
+function getAlianzas(){
+  const stored = localStorage.getItem('domus_alianzas');
+  if(stored){ try { return JSON.parse(stored); } catch(e){} }
+  // Inicial: generar a partir de los orígenes únicos de los leads
+  const origenes = new Set();
+  leads.forEach(l => { if(l.origen) origenes.add(l.origen); });
+  const inicial = Array.from(origenes).map((o, i) => ({
+    id: 'al-' + Date.now() + '-' + i,
+    nombre: o,
+    cuenta_banco: '',
+    cuenta_tipo: '',
+    cuenta_numero: '',
+    cuenta_titular: '',
+    cuenta_rut: '',
+    monto_por_depto: '',
+    fecha_lead: '',
+    fecha_concrecion: '',
+    leads_asignados: leads.filter(l => l.origen === o).map(l => l.id),
+    notas: ''
+  }));
+  saveAlianzas(inicial);
+  return inicial;
+}
+function saveAlianzas(arr){ localStorage.setItem('domus_alianzas', JSON.stringify(arr)); }
+
+function renderAlianzas(c){
+  const alianzas = getAlianzas();
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text2);font-weight:700">${alianzas.length} alianza${alianzas.length!==1?'s':''} registrada${alianzas.length!==1?'s':''}</div>
+      <button class="btn btn-p" onclick="addAlianza()"><i class="ti ti-plus"></i>Nueva alianza</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">
+  `;
+  alianzas.forEach(a => {
+    const leadsAsig = (a.leads_asignados||[]).map(id => leads.find(l => l.id === id)).filter(Boolean);
+    html += `
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:16px;cursor:pointer;transition:all .15s" onclick="openAlianza('${a.id}')" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(100,60,220,.1)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div class="N" style="font-size:15px;font-weight:900;margin-bottom:8px">${a.nombre||'Sin nombre'}</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.6">
+        ${a.cuenta_banco ? `🏦 ${a.cuenta_banco} ${a.cuenta_tipo||''}<br>` : '<span style="color:var(--text3);font-style:italic">Sin cuenta registrada</span><br>'}
+        ${a.monto_por_depto ? `💰 ${a.monto_por_depto} por depto<br>` : ''}
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text2);font-weight:700;margin-bottom:4px">👥 ${leadsAsig.length} clientes asignados</div>
+        ${leadsAsig.slice(0,3).map(l => `<div style="font-size:11px;color:var(--text);padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">• ${l.name}</div>`).join('')}
+        ${leadsAsig.length > 3 ? `<div style="font-size:10px;color:var(--text3);font-style:italic">+ ${leadsAsig.length - 3} más</div>` : ''}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  c.innerHTML = html;
+}
+function addAlianza(){
+  const alianzas = getAlianzas();
+  const newA = {
+    id: 'al-' + Date.now(),
+    nombre: 'Nueva alianza',
+    cuenta_banco: '',
+    cuenta_tipo: '',
+    cuenta_numero: '',
+    cuenta_titular: '',
+    cuenta_rut: '',
+    monto_por_depto: '',
+    fecha_lead: '',
+    fecha_concrecion: '',
+    leads_asignados: [],
+    notas: ''
+  };
+  alianzas.push(newA);
+  saveAlianzas(alianzas);
+  openAlianza(newA.id);
+}
+function openAlianza(id){
+  const alianzas = getAlianzas();
+  const a = alianzas.find(x => x.id === id);
+  if(!a) return;
+  const ex = document.getElementById('crm-ov'); if(ex) ex.remove();
+  const ov = document.createElement('div'); ov.id = 'crm-ov'; ov.className = 'overlay';
+  ov.addEventListener('click', e => { if(e.target === ov) closeModal(); });
+  const leadsAsig = (a.leads_asignados||[]).map(id => leads.find(l => l.id === id)).filter(Boolean);
+  const leadsDisponibles = leads.filter(l => !(a.leads_asignados||[]).includes(l.id));
+  ov.innerHTML = `<div class="modal">
+    <div class="mhd">
+      <div style="width:42px;height:42px;border-radius:11px;background:var(--purple);display:flex;align-items:center;justify-content:center;font-size:20px">🤝</div>
+      <div class="mtitle"><h2>${a.nombre}</h2><p>Alianza · ${leadsAsig.length} clientes</p></div>
+      <button class="btn btn-sm" onclick="closeModal()"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="mbody">
+      <div class="field"><label>Nombre de la alianza</label>
+        <input value="${(a.nombre||'').replace(/"/g,'&quot;')}" onchange="updAlianza('${a.id}','nombre',this.value)">
+      </div>
+      <div class="sh">🏦 Datos bancarios</div>
+      <div class="field"><label>Titular</label>
+        <input value="${(a.cuenta_titular||'').replace(/"/g,'&quot;')}" placeholder="Nombre titular" onchange="updAlianza('${a.id}','cuenta_titular',this.value)">
+      </div>
+      <div class="field"><label>RUT</label>
+        <input value="${(a.cuenta_rut||'').replace(/"/g,'&quot;')}" placeholder="12.345.678-9" onchange="updAlianza('${a.id}','cuenta_rut',this.value)">
+      </div>
+      <div class="frow">
+        <div class="field"><label>Banco</label>
+          <input value="${(a.cuenta_banco||'').replace(/"/g,'&quot;')}" onchange="updAlianza('${a.id}','cuenta_banco',this.value)">
+        </div>
+        <div class="field"><label>Tipo</label>
+          <select onchange="updAlianza('${a.id}','cuenta_tipo',this.value)">
+            <option value="">—</option>
+            <option ${a.cuenta_tipo==='Corriente'?'selected':''}>Corriente</option>
+            <option ${a.cuenta_tipo==='Vista'?'selected':''}>Vista</option>
+            <option ${a.cuenta_tipo==='Ahorro'?'selected':''}>Ahorro</option>
+            <option ${a.cuenta_tipo==='Rut'?'selected':''}>Rut</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>N° de cuenta</label>
+        <input value="${(a.cuenta_numero||'').replace(/"/g,'&quot;')}" onchange="updAlianza('${a.id}','cuenta_numero',this.value)">
+      </div>
+      <div class="sh">💰 Acuerdo económico</div>
+      <div class="field"><label>Monto acordado por departamento</label>
+        <input value="${(a.monto_por_depto||'').replace(/"/g,'&quot;')}" placeholder="$0 o %" onchange="updAlianza('${a.id}','monto_por_depto',this.value)">
+      </div>
+      <div class="frow">
+        <div class="field"><label>📅 Fecha del lead</label>
+          <input type="date" value="${a.fecha_lead||''}" onchange="updAlianza('${a.id}','fecha_lead',this.value)">
+        </div>
+        <div class="field"><label>📅 Fecha de concreción</label>
+          <input type="date" value="${a.fecha_concrecion||''}" onchange="updAlianza('${a.id}','fecha_concrecion',this.value)">
+        </div>
+      </div>
+      <div class="sh">👥 Clientes asignados (${leadsAsig.length})</div>
+      <div id="leads-asignados-list" style="margin-bottom:10px">
+        ${leadsAsig.length === 0 ? '<div style="font-size:11px;color:var(--text3);font-style:italic;padding:6px 0">Sin clientes asignados aún</div>' : leadsAsig.map(l => `
+          <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--bg);border-radius:var(--rsm);margin-bottom:5px">
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+              <div style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.address||''}</div>
+            </div>
+            <button onclick="removeLeadAlianza('${a.id}',${l.id})" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;padding:4px 8px">✕</button>
+          </div>
+        `).join('')}
+      </div>
+      <div class="field"><label>Agregar cliente del pipeline</label>
+        <select id="add-lead-sel">
+          <option value="">— Selecciona un cliente —</option>
+          ${leadsDisponibles.map(l => `<option value="${l.id}">${l.name} — ${l.address||''}</option>`).join('')}
+        </select>
+        <button class="btn btn-sm btn-p" style="margin-top:6px;width:100%;justify-content:center" onclick="addLeadAlianza('${a.id}')"><i class="ti ti-plus"></i>Agregar al alianza</button>
+      </div>
+      <div class="sh">📝 Notas</div>
+      <div class="field">
+        <textarea rows="3" placeholder="Comentarios sobre esta alianza..." onchange="updAlianza('${a.id}','notas',this.value)">${a.notas||''}</textarea>
+      </div>
+      <button class="btn btn-danger" style="width:100%;justify-content:center;margin-top:12px" onclick="deleteAlianza('${a.id}')"><i class="ti ti-trash"></i>Eliminar alianza</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function updAlianza(id, field, val){
+  const alianzas = getAlianzas();
+  const a = alianzas.find(x => x.id === id);
+  if(a){ a[field] = val; saveAlianzas(alianzas); }
+}
+function addLeadAlianza(aid){
+  const sel = document.getElementById('add-lead-sel');
+  if(!sel || !sel.value) return;
+  const alianzas = getAlianzas();
+  const a = alianzas.find(x => x.id === aid);
+  if(!a) return;
+  a.leads_asignados = a.leads_asignados || [];
+  if(!a.leads_asignados.includes(parseInt(sel.value))){
+    a.leads_asignados.push(parseInt(sel.value));
+    saveAlianzas(alianzas);
+    openAlianza(aid);
+    toast('✅ Cliente agregado');
+  }
+}
+function removeLeadAlianza(aid, lid){
+  const alianzas = getAlianzas();
+  const a = alianzas.find(x => x.id === aid);
+  if(!a) return;
+  a.leads_asignados = (a.leads_asignados||[]).filter(id => id !== lid);
+  saveAlianzas(alianzas);
+  openAlianza(aid);
+}
+function deleteAlianza(id){
+  if(!confirm('¿Eliminar esta alianza?')) return;
+  let alianzas = getAlianzas();
+  alianzas = alianzas.filter(a => a.id !== id);
+  saveAlianzas(alianzas);
+  closeModal();
+  renderAlianzas(document.getElementById('mc'));
+  toast('🗑️ Alianza eliminada');
+}
+
+// ─────────────────────────────────────────────────
+// 2) FOTOGRAFÍA
+// ─────────────────────────────────────────────────
+function renderFotografia(c){
+  const propiedades = leads.filter(l => l.address);
+  let html = `
+    <div style="font-size:11px;color:var(--text2);font-weight:700;margin-bottom:14px">${propiedades.length} propiedades · 3 bloques por propiedad: Bruto / Edición Antigua / Edición Nueva</div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+  `;
+  propiedades.forEach(l => {
+    const initials = (l.name||'').split(' ').map(x=>x[0]).join('').slice(0,2).toUpperCase();
+    html += `
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:14px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;cursor:pointer" onclick="toggleFotoProp(${l.id})">
+        <div style="width:38px;height:38px;border-radius:50%;background:var(--purple-l);color:var(--purple-d);display:flex;align-items:center;justify-content:center;font-weight:900;font-family:'Nunito',sans-serif;font-size:13px">${initials}</div>
+        <div style="flex:1">
+          <div class="N" style="font-size:13px;font-weight:900">${l.name}</div>
+          <div style="font-size:11px;color:var(--text2)">${l.address}</div>
+        </div>
+        <i class="ti ti-chevron-down" id="foto-arrow-${l.id}" style="font-size:18px;color:var(--text3)"></i>
+      </div>
+      <div id="foto-content-${l.id}" style="display:none">
+        ${renderFotoBlock(l, 'fotos_bruto', '📸 Fotografía en bruto', 'var(--amber)')}
+        ${renderFotoBlock(l, 'fotos_antiguas', '🖼️ Fotografía edición antigua', 'var(--blue)')}
+        ${renderFotoBlock(l, 'fotos_nuevas', '✨ Fotografía edición nueva', 'var(--green)')}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  c.innerHTML = html;
+}
+function toggleFotoProp(id){
+  const content = document.getElementById('foto-content-'+id);
+  const arrow = document.getElementById('foto-arrow-'+id);
+  if(!content) return;
+  const isOpen = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.className = isOpen ? 'ti ti-chevron-down' : 'ti ti-chevron-up';
+}
+function renderFotoBlock(l, field, titulo, color){
+  const fotos = l[field] || [];
+  let html = `<div style="border-top:1px solid var(--border);padding:12px 0;margin-top:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="N" style="font-size:12px;font-weight:900;color:${color}">${titulo} (${fotos.length})</div>
+      <label class="btn btn-sm" style="cursor:pointer">
+        <i class="ti ti-plus"></i>Agregar
+        <input type="file" accept="image/*" multiple style="display:none" onchange="addFotosTo(${l.id},'${field}',this)">
+      </label>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px">
+      ${fotos.map((f,i) => `
+        <div style="border:1px solid var(--border);border-radius:var(--rsm);overflow:hidden;background:var(--bg)">
+          <div style="position:relative">
+            <img src="${f.data}" style="width:100%;height:120px;object-fit:cover;display:block;cursor:pointer" onclick="openLightbox('${f.data}')">
+            <button onclick="deleteFotoFrom(${l.id},'${field}',${i})" style="position:absolute;top:4px;right:4px;background:rgba(220,38,38,.9);color:#fff;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:13px">×</button>
+          </div>
+          <div style="padding:6px">
+            <input value="${(f.link||'').replace(/"/g,'&quot;')}" placeholder="🔗 Link plataforma..." style="width:100%;font-size:10px;padding:4px 6px;border:1px solid var(--border2);border-radius:4px;background:var(--surface);font-family:inherit" onchange="updFotoLink(${l.id},'${field}',${i},this.value)">
+            ${f.link ? `<a href="${f.link}" target="_blank" style="font-size:9px;color:var(--blue-d);font-weight:700;margin-top:3px;display:inline-block;text-decoration:none">↗ Abrir</a>` : ''}
+          </div>
+        </div>
+      `).join('') || '<div style="grid-column:1/-1;font-size:11px;color:var(--text3);font-style:italic;text-align:center;padding:14px">Sin fotos en este bloque</div>'}
+    </div>
+  </div>`;
+  return html;
+}
+function addFotosTo(id, field, input){
+  const l = leads.find(x => x.id === id);
+  if(!l || !input.files.length) return;
+  l[field] = l[field] || [];
+  let done = 0;
+  Array.from(input.files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      l[field].push({name:file.name, data:e.target.result, link:''});
+      done++;
+      if(done === input.files.length){
+        saveData();
+        renderFotografia(document.getElementById('mc'));
+        toggleFotoProp(id); toggleFotoProp(id); // mantener abierto
+        toast('📸 ' + done + ' fotos subidas');
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function deleteFotoFrom(id, field, idx){
+  if(!confirm('¿Borrar esta foto?')) return;
+  const l = leads.find(x => x.id === id);
+  if(!l || !l[field]) return;
+  l[field].splice(idx, 1);
+  saveData();
+  renderFotografia(document.getElementById('mc'));
+}
+function updFotoLink(id, field, idx, val){
+  const l = leads.find(x => x.id === id);
+  if(!l || !l[field] || !l[field][idx]) return;
+  l[field][idx].link = val;
+  saveData();
+}
+function openLightbox(src){
+  const lb = document.createElement('div');
+  lb.className = 'lightbox';
+  lb.innerHTML = `<div class="lightbox-close">✕</div><img src="${src}">`;
+  lb.onclick = () => lb.remove();
+  document.body.appendChild(lb);
+}
+
+// ─────────────────────────────────────────────────
+// 3) AMOBLADOS — Cotizador con 4 plantillas
+// ─────────────────────────────────────────────────
+window.AMOBLADOS_TPL = {
+  studio: {label:'STUDIO - BÁSICO', emoji:'🏠', totales:{amobMasAdic:3375794, amobMasAdicDscto:3288214, adic:453600, adicDscto:408240, amob:2922194, amobDscto:2879974}, sectores:[
+    {nombre:'SECTOR HABITACIÓN', items:[
+      ['CAMA DE 2 PLAZAS',1,409990,614985,553487],['VELADOR',2,39980,119940,107946],['ALMOHADAS',4,6888,41328,37195],['SABANAS 2 PLAZAS',2,24990,74970,67473],['COBERTOR 2 PLAZAS',1,63992,95988,86389],['COJINES CAMA',2,6120,18360,16524],['LAMPARA VELADOR',2,11731,35193,31674],['CUBRECOLCHÓN',1,17990,26985,24287],['AMPOLLETAS LAMPARAS',2,5000,15000,13500],['TV 43 PULGADAS',1,260074,390111,351100]
+    ], subtotal:[1432860,1289574]},
+    {nombre:'SECTOR COCINA', items:[
+      ['KIT COCINA (colador, rallador, servilletero, porta toalla nova, cuchara de palo)',1,19790,29685,26717],['COMEDOR 2 PERSONAS',1,199960,299940,269946],['MICROONDAS 20LT',1,57990,86985,78287],['REFRIGERADOR 166LT',1,249990,374985,337487],['TABLA DE PICAR',1,5500,8250,7425],['GUANTES DE COCINA',1,4000,6000,5400],['SET CUCHILLOS + TIJERA + PELAPAPAS',1,7990,11985,10787],['LOZA 16 PIEZAS',1,25800,38700,34830],['INDIVIDUAL',4,2500,15000,13500],['HERVIDOR',1,10000,15000,13500],['BATERIA DE COCINA 7 PZ',1,43990,65985,59387],['SECADOR DE VAJILLAS',1,5000,7500,6750],['JUEGO CUCHILLERIA 24 PC',1,8000,12000,10800],['SET ESCOBILLÓN + PALA',1,6000,9000,8100],['BASURERO COCINA',1,9290,13935,12542],['ORGANIZADOR DE CUBIERTOS',1,3000,4500,4050],['VASOS X6',1,4000,6000,5400],['COPAS X6',1,7000,10500,9450],['PAÑO DE COCINA',2,2000,6000,5400],['SET UTENSILIOS COCINA (ESPATULA)',1,7000,10500,9450],['SACA CORCHOS',1,2000,3000,2700]
+    ], subtotal:[1035450,931905]},
+    {nombre:'SECTOR BAÑO', items:[
+      ['SECADOR DE PELO',1,21491,32237,29013],['TOALLAS DE BAÑO',4,4999,29994,26995],['TOALLAS DE MANO',2,2056,6168,5551],['CEPILLO WC',1,3000,4500,4050],['BASURERO BAÑO',1,7000,10500,9450],['CORTINA + SALIDA DE DUCHA',1,20990,31485,28337],['SET LAVAMANOS',1,7000,10500,9450]
+    ], subtotal:[125384,112845]},
+    {nombre:'DECORACIÓN GENERAL', items:[
+      ['PLANTA ARTIFICIAL DECORATIVA',1,30000,45000,40500],['CANASTO MACETERO',2,17000,51000,45900],['RELOJ DE PARED',1,10000,15000,13500],['PLANTA DECORATIVA COMEDOR',1,15000,22500,20250],['CUADRO',1,30000,45000,40500],['DECORACIÓN',1,30000,45000,40500]
+    ], subtotal:[223500,201150]},
+    {nombre:'BALCÓN (OPCIONAL)', items:[
+      ['TERRAZA',1,70000,105000,94500]
+    ], subtotal:[195000,175500]},
+    {nombre:'AMOBLADO - FLETE', items:[
+      ['FLETE',1,null,250000,105000]
+    ], subtotal:[null,344500]},
+    {nombre:'ADICIONALES', items:[
+      ['CORTINA ROLLER',2,41200,123600,111240],['CHAPA ELECTRONICA',1,150000,225000,202500],['LUMINARIA BAÑO',1,10000,15000,13500],['LUMINARIA TRADICIONAL',4,10000,60000,54000],['ESTACIONAMIENTOS',1,20000,30000,27000]
+    ], subtotal:[453600,408240]}
+  ]},
+  'h1b1':{label:'1 HABITACIÓN 1 BAÑO - BÁSICO', emoji:'🏘️', totales:{amobMasAdic:4581524, amobMasAdicDscto:4373371, adic:453600, adicDscto:408240, amob:4127924, amobDscto:3965131}, sectores:[
+    {nombre:'SECTOR HABITACIÓN', items:[
+      ['CAMA DE 2 PLAZAS',1,409990,614985,553487],['VELADOR',2,39980,119940,107946],['ALMOHADAS',4,6888,41328,37195],['SABANAS 2 PLAZAS',2,24990,74970,67473],['COBERTOR 2 PLAZAS',1,63992,95988,86389],['COJINES CAMA',2,6120,18360,16524],['LAMPARA VELADOR',2,11731,35193,31674],['CUBRECOLCHÓN',1,17990,26985,24287],['AMPOLLETAS LAMPARAS',2,5000,15000,13500],['TV 43 PULGADAS',1,260074,390111,351100]
+    ], subtotal:[1432860,1289574]},
+    {nombre:'SECTOR COCINA', items:[
+      ['KIT COCINA',1,19790,29685,26717],['COMEDOR 2 PERSONAS',1,199960,299940,269946],['MICROONDAS 20LT',1,57990,86985,78287],['REFRIGERADOR 166LT',1,249990,374985,337487],['TABLA DE PICAR',1,5500,8250,7425],['GUANTES DE COCINA',1,4000,6000,5400],['SET CUCHILLOS + TIJERA + PELAPAPAS',1,7990,11985,10787],['LOZA 16 PIEZAS',1,25800,38700,34830],['INDIVIDUAL',6,2500,22500,20250],['HERVIDOR',1,10000,15000,13500],['BATERIA DE COCINA 7 PZ',1,43990,65985,59387],['SECADOR DE VAJILLAS',1,5000,7500,6750],['JUEGO CUCHILLERIA 24 PC',1,8000,12000,10800],['SET ESCOBILLÓN + PALA',1,6000,9000,8100],['BASURERO COCINA',1,9290,13935,12542],['ORGANIZADOR DE CUBIERTOS',1,3000,4500,4050],['VASOS X6',1,4000,6000,5400],['COPAS X6',1,7000,10500,9450],['PAÑO DE COCINA',2,2000,6000,5400],['SET UTENSILIOS COCINA',1,7000,10500,9450],['SACA CORCHOS',1,2000,3000,2700]
+    ], subtotal:[1042950,938655]},
+    {nombre:'SECTOR BAÑO', items:[
+      ['SECADOR DE PELO',1,21491,32237,29013],['TOALLAS DE BAÑO',4,4999,29994,26995],['TOALLAS DE MANO',2,2056,6168,5551],['CEPILLO WC',1,3000,4500,4050],['BASURERO BAÑO',1,7000,10500,9450],['CORTINA + SALIDA DE DUCHA',1,20990,31485,28337],['SET LAVAMANOS',1,7000,10500,9450]
+    ], subtotal:[125384,112845]},
+    {nombre:'DECORACIÓN GENERAL', items:[
+      ['PLANTA ARTIFICIAL DECORATIVA',2,45000,135000,121500],['CANASTO MACETERO',2,17000,51000,45900],['RELOJ DE PARED',1,10000,15000,13500],['PLANTA DECORATIVA COMEDOR',1,15000,22500,20250],['CUADRO',1,30000,45000,40500],['DECORACIÓN',1,30000,45000,40500]
+    ], subtotal:[313500,282150]},
+    {nombre:'SECTOR SALA DE ESTAR', items:[
+      ['PLANCHA',1,14990,22485,20237],['TABLA DE PLANCHAR',1,33900,50850,45765],['SILLÓN 2 CUERPOS',1,399990,599985,539987],['COJIN SOFA',3,9990,44955,40460],['MESA DE CENTRO',1,89990,134985,121487],['RACK',1,69990,104985,94487],['ALFOMBRA',1,99990,149985,134987]
+    ], subtotal:[1108230,997407]},
+    {nombre:'BALCÓN (OPCIONAL)', items:[['TERRAZA',1,70000,105000,94500]], subtotal:[null,null]},
+    {nombre:'AMOBLADO - FLETE', items:[['FLETE',1,null,250000,105000]], subtotal:[null,344500]},
+    {nombre:'ADICIONALES', items:[
+      ['CORTINA ROLLER',2,41200,123600,111240],['CHAPA ELECTRONICA',1,150000,225000,202500],['LUMINARIA BAÑO',1,10000,15000,13500],['LUMINARIA TRADICIONAL',4,10000,60000,54000],['ESTACIONAMIENTOS',1,20000,30000,27000]
+    ], subtotal:[453600,408240]}
+  ]},
+  'h2b1':{label:'2 HABITACIONES 1 BAÑO - BÁSICO', emoji:'🏡', totales:{amobMasAdic:5374519, amobMasAdicDscto:null, adic:453600, adicDscto:408240, amob:5240310, amobDscto:4966279}, sectores:[
+    {nombre:'SECTOR HABITACIÓN', items:[
+      ['CAMA DE 2 PLAZAS',1,409990,614985,553487],['CAMAROTE 1 PZA',1,400000,600000,540000],['VELADOR',3,39980,179910,161919],['ALMOHADAS',8,6888,82656,74390],['SABANAS 2 PLAZAS',2,24990,74970,67473],['COBERTOR 2 PLAZAS',1,63992,95988,86389],['SABANAS 1 PLAZA',4,20000,120000,108000],['COBERTOR 1 PLAZA',2,50000,150000,135000],['COJINES CAMA',4,6120,36720,33048],['LAMPARA VELADOR',3,11731,52790,47511],['CUBRECOLCHÓN 2PZA',1,17990,26985,24287],['CUBRECOLCHÓN 1PZA',2,17990,53970,48573],['AMPOLLETAS LAMPARAS',4,5000,30000,27000],['TV 43 PULGADAS',1,260074,390111,351100]
+    ], subtotal:[2509085,2258176]},
+    {nombre:'SECTOR COCINA', items:[
+      ['KIT COCINA',1,19790,29685,26717],['COMEDOR 4 PERSONAS',1,199960,299940,269946],['MICROONDAS 20LT',1,57990,86985,78287],['REFRIGERADOR 166LT',1,249990,374985,337487],['TABLA DE PICAR',1,5500,8250,7425],['GUANTES DE COCINA',1,4000,6000,5400],['SET CUCHILLOS + TIJERA + PELAPAPAS',1,7990,11985,10787],['LOZA 16 PIEZAS',1,25800,38700,34830],['INDIVIDUAL',6,2500,22500,20250],['HERVIDOR',1,10000,15000,13500],['BATERIA DE COCINA 7 PZ',1,43990,65985,59387],['SECADOR DE VAJILLAS',1,5000,7500,6750],['JUEGO CUCHILLERIA 24 PC',1,8000,12000,10800],['SET ESCOBILLÓN + PALA',1,6000,9000,8100],['BASURERO COCINA',1,9290,13935,12542],['ORGANIZADOR DE CUBIERTOS',1,3000,4500,4050],['VASOS X6',1,4000,6000,5400],['COPAS X6',1,7000,10500,9450],['PAÑO DE COCINA',2,2000,6000,5400],['SET UTENSILIOS COCINA',1,7000,10500,9450],['SACA CORCHOS',1,2000,3000,2700]
+    ], subtotal:[1042950,938655]},
+    {nombre:'SECTOR BAÑO', items:[
+      ['SECADOR DE PELO',1,21491,32237,29013],['TOALLAS DE BAÑO',8,4999,59988,53989],['TOALLAS DE MANO',4,2056,12336,11102],['CEPILLO WC',1,3000,4500,4050],['BASURERO BAÑO',1,7000,10500,9450],['CORTINA + SALIDA DE DUCHA',1,20990,31485,28337],['SET LAVAMANOS',1,7000,10500,9450]
+    ], subtotal:[161546,145391]},
+    {nombre:'DECORACIÓN GENERAL', items:[
+      ['PLANTA ARTIFICIAL DECORATIVA',2,45000,135000,121500],['CANASTO MACETERO',2,17000,51000,45900],['RELOJ DE PARED',1,10000,15000,13500],['PLANTA DECORATIVA COMEDOR',1,15000,22500,20250],['CUADRO',1,30000,45000,40500],['DECORACIÓN',1,30000,45000,40500]
+    ], subtotal:[313500,282150]},
+    {nombre:'SECTOR SALA DE ESTAR', items:[
+      ['PLANCHA',1,14990,22485,20237],['TABLA DE PLANCHAR',1,33900,50850,45765],['SILLÓN 2 CUERPOS',1,399990,599985,539987],['COJIN SOFA',3,9990,44955,40460],['MESA DE CENTRO',1,89990,134985,121487],['RACK',1,69990,104985,94487],['ALFOMBRA',1,99990,149985,134987]
+    ], subtotal:[1108230,997407]},
+    {nombre:'BALCÓN (OPCIONAL)', items:[['TERRAZA',1,70000,105000,94500]], subtotal:[null,null]},
+    {nombre:'AMOBLADO - FLETE', items:[['FLETE',1,null,250000,105000]], subtotal:[null,344500]},
+    {nombre:'ADICIONALES', items:[
+      ['CORTINA ROLLER',2,41200,123600,111240],['CHAPA ELECTRONICA',1,150000,225000,202500],['LUMINARIA BAÑO',1,10000,15000,13500],['LUMINARIA TRADICIONAL',4,10000,60000,54000],['ESTACIONAMIENTOS',1,20000,30000,27000]
+    ], subtotal:[453600,408240]}
+  ]},
+  'h2b2':{label:'2 HABITACIONES 2 BAÑOS - BÁSICO', emoji:'🏰', totales:{amobMasAdic:5425806, amobMasAdicDscto:null, adic:453600, adicDscto:408240, amob:5297295, amobDscto:5017566}, sectores:[
+    {nombre:'SECTOR HABITACIÓN', items:[
+      ['CAMA DE 2 PLAZAS',1,409990,614985,553487],['CAMAROTE 1 PZA',1,400000,600000,540000],['VELADOR',3,39980,179910,161919],['ALMOHADAS',8,6888,82656,74390],['SABANAS 2 PLAZAS',2,24990,74970,67473],['COBERTOR 2 PLAZAS',1,63992,95988,86389],['SABANAS 1 PLAZA',4,20000,120000,108000],['COBERTOR 1 PLAZA',2,50000,150000,135000],['COJINES CAMA',4,6120,36720,33048],['LAMPARA VELADOR',3,11731,52790,47511],['CUBRECOLCHÓN 2PZA',1,17990,26985,24287],['CUBRECOLCHÓN 1PZA',2,17990,53970,48573],['AMPOLLETAS LAMPARAS',4,5000,30000,27000],['TV 43 PULGADAS',1,260074,390111,351100]
+    ], subtotal:[2509085,2258176]},
+    {nombre:'SECTOR COCINA', items:[
+      ['KIT COCINA',1,19790,29685,26717],['COMEDOR 4 PERSONAS',1,199960,299940,269946],['MICROONDAS 20LT',1,57990,86985,78287],['REFRIGERADOR 166LT',1,249990,374985,337487],['TABLA DE PICAR',1,5500,8250,7425],['GUANTES DE COCINA',1,4000,6000,5400],['SET CUCHILLOS + TIJERA + PELAPAPAS',1,7990,11985,10787],['LOZA 16 PIEZAS',1,25800,38700,34830],['INDIVIDUAL',6,2500,22500,20250],['HERVIDOR',1,10000,15000,13500],['BATERIA DE COCINA 7 PZ',1,43990,65985,59387],['SECADOR DE VAJILLAS',1,5000,7500,6750],['JUEGO CUCHILLERIA 24 PC',1,8000,12000,10800],['SET ESCOBILLÓN + PALA',1,6000,9000,8100],['BASURERO COCINA',1,9290,13935,12542],['ORGANIZADOR DE CUBIERTOS',1,3000,4500,4050],['VASOS X6',1,4000,6000,5400],['COPAS X6',1,7000,10500,9450],['PAÑO DE COCINA',2,2000,6000,5400],['SET UTENSILIOS COCINA',1,7000,10500,9450],['SACA CORCHOS',1,2000,3000,2700]
+    ], subtotal:[1042950,938655]},
+    {nombre:'SECTOR BAÑO', items:[
+      ['SECADOR DE PELO',1,21491,32237,29013],['TOALLAS DE BAÑO',8,4999,59988,53989],['TOALLAS DE MANO',4,2056,12336,11102],['CEPILLO WC',2,3000,9000,8100],['BASURERO BAÑO',2,7000,21000,18900],['CORTINA + SALIDA DE DUCHA',2,20990,62970,56673],['SET LAVAMANOS',2,7000,21000,18900]
+    ], subtotal:[218531,196677]},
+    {nombre:'DECORACIÓN GENERAL', items:[
+      ['PLANTA ARTIFICIAL DECORATIVA',2,45000,135000,121500],['CANASTO MACETERO',2,17000,51000,45900],['RELOJ DE PARED',1,10000,15000,13500],['PLANTA DECORATIVA COMEDOR',1,15000,22500,20250],['CUADRO',1,30000,45000,40500],['DECORACIÓN',1,30000,45000,40500]
+    ], subtotal:[313500,282150]},
+    {nombre:'SECTOR SALA DE ESTAR', items:[
+      ['PLANCHA',1,14990,22485,20237],['TABLA DE PLANCHAR',1,33900,50850,45765],['SILLÓN 2 CUERPOS',1,399990,599985,539987],['COJIN SOFA',3,9990,44955,40460],['MESA DE CENTRO',1,89990,134985,121487],['RACK',1,69990,104985,94487],['ALFOMBRA',1,99990,149985,134987]
+    ], subtotal:[1108230,997407]},
+    {nombre:'BALCÓN (OPCIONAL)', items:[['TERRAZA',1,70000,105000,94500]], subtotal:[null,null]},
+    {nombre:'AMOBLADO - FLETE', items:[['FLETE',1,null,250000,105000]], subtotal:[null,344500]},
+    {nombre:'ADICIONALES', items:[
+      ['CORTINA ROLLER',2,41200,123600,111240],['CHAPA ELECTRONICA',1,150000,225000,202500],['LUMINARIA BAÑO',1,10000,15000,13500],['LUMINARIA TRADICIONAL',4,10000,60000,54000],['ESTACIONAMIENTOS',1,20000,30000,27000]
+    ], subtotal:[453600,408240]}
+  ]}
+};
+window.AMOBLADOS_CURRENT = 'studio';
+function formatCLP(n){
+  if(n === null || n === undefined) return '—';
+  return '$' + n.toLocaleString('es-CL');
+}
+function renderAmobladosCotizador(c){
+  const tplKey = window.AMOBLADOS_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  let html = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      ${Object.entries(window.AMOBLADOS_TPL).map(([k,t])=>`
+        <button onclick="window.AMOBLADOS_CURRENT='${k}'; renderAmobladosCotizador(document.getElementById('mc'))" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:var(--rsm);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:12px;transition:all .13s">
+          <span style="font-size:18px">${t.emoji}</span>${t.label}
+        </button>
+      `).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px">
+      <div style="background:var(--purple-l);border:2px solid var(--purple);border-radius:var(--rsm);padding:12px 14px"><div style="font-size:10px;color:var(--purple-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Total Amoblado</div><div class="N" style="font-size:18px;font-weight:900;color:var(--purple-d);margin-top:2px">${formatCLP(tpl.totales.amob)}</div></div>
+      <div style="background:var(--green-l);border:2px solid var(--green);border-radius:var(--rsm);padding:12px 14px"><div style="font-size:10px;color:var(--green-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Amob. con descuento</div><div class="N" style="font-size:18px;font-weight:900;color:var(--green-d);margin-top:2px">${formatCLP(tpl.totales.amobDscto)}</div></div>
+      <div style="background:var(--amber-l);border:2px solid var(--amber);border-radius:var(--rsm);padding:12px 14px"><div style="font-size:10px;color:var(--amber-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Adicionales</div><div class="N" style="font-size:18px;font-weight:900;color:var(--amber-d);margin-top:2px">${formatCLP(tpl.totales.adic)}</div></div>
+      <div style="background:var(--blue-l);border:2px solid var(--blue);border-radius:var(--rsm);padding:12px 14px"><div style="font-size:10px;color:var(--blue-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Total Amob + Adic</div><div class="N" style="font-size:18px;font-weight:900;color:var(--blue-d);margin-top:2px">${formatCLP(tpl.totales.amobMasAdic)}</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--text2);font-style:italic;margin-bottom:14px">Valores no incluyen IVA 19%</div>
+  `;
+  tpl.sectores.forEach(s => {
+    html += `
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden">
+        <div style="background:var(--bg);padding:10px 14px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text);border-bottom:2px solid var(--border)">${s.nombre}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:left;padding:8px 14px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Item</th>
+            <th style="text-align:center;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:60px">Un.</th>
+            <th style="text-align:right;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:110px">Cotización</th>
+            <th style="text-align:right;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:110px">+ 50%</th>
+            <th style="text-align:right;padding:8px 14px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:110px">+ 35%</th>
+          </tr></thead>
+          <tbody>
+            ${s.items.map(it=>`<tr>
+              <td style="padding:8px 14px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+              <td style="padding:8px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid var(--border)">${it[1]}</td>
+              <td style="padding:8px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border)">${formatCLP(it[2])}</td>
+              <td style="padding:8px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border)">${formatCLP(it[3])}</td>
+              <td style="padding:8px 14px;text-align:right;font-size:12px;font-weight:700;color:var(--purple-d);border-bottom:1px solid var(--border)">${formatCLP(it[4])}</td>
+            </tr>`).join('')}
+            ${s.subtotal && (s.subtotal[0]||s.subtotal[1])?`<tr style="background:var(--bg)">
+              <td colspan="3" style="padding:8px 14px;font-size:11px;font-weight:900;font-family:'Nunito',sans-serif;text-align:right">SUBTOTAL ${s.nombre}</td>
+              <td style="padding:8px;text-align:right;font-size:12px;font-weight:900;color:var(--text)">${formatCLP(s.subtotal[0])}</td>
+              <td style="padding:8px 14px;text-align:right;font-size:12px;font-weight:900;color:var(--purple-d)">${formatCLP(s.subtotal[1])}</td>
+            </tr>`:''}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+  c.innerHTML = html;
+}
 // Load from cloud on startup
 loadFromCloud();
 </script>
