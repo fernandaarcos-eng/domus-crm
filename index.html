@@ -2742,6 +2742,389 @@ function renderAmobladosCotizador(c){
   });
   c.innerHTML = html;
 }
+  // ═══════════════════════════════════════════════════════════
+// ═══ CAMBIOS V6: Fotografía + Amoblados v2 + Alianzas v2 ══
+// ═══════════════════════════════════════════════════════════
+
+// ─── SIDEBAR: subdivisión en Amoblados ───
+function reorganizarSidebarV6(){
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial || navComercial.dataset.v6) return;
+  navComercial.dataset.v6 = 'true';
+  navComercial.innerHTML = `
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('propietarios')">
+        <span class="sb-section-arrow" id="arr-propietarios">▼</span>
+        <span>👥 Propietarios</span>
+      </div>
+      <div class="sb-section-items" id="sb-propietarios">
+        <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb">0</span></div>
+        <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+        <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+        <div class="nav-i" onclick="showView('alianzas',this)"><i class="ti ti-handshake"></i>Alianzas</div>
+        <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('amoblados')">
+        <span class="sb-section-arrow collapsed" id="arr-amoblados">▶</span>
+        <span>🛋️ Amoblados</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-amoblados">
+        <div class="nav-i" onclick="showView('amoblados-cotizador',this)"><i class="ti ti-calculator"></i>Cotizador (interno)</div>
+        <div class="nav-i" onclick="showView('amoblados-clientes',this)"><i class="ti ti-presentation"></i>Vista clientes</div>
+        <div class="nav-i" onclick="showView('amoblados-adicionales',this)"><i class="ti ti-plus"></i>Adicionales</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('documentos')">
+        <span class="sb-section-arrow collapsed" id="arr-documentos">▶</span>
+        <span>📄 Documentos a enviar</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-documentos">
+        <div class="nav-i" onclick="showView('documentos-home',this)"><i class="ti ti-home"></i>Inicio</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('marketing')">
+        <span class="sb-section-arrow collapsed" id="arr-marketing">▶</span>
+        <span>📣 Marketing</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-marketing">
+        <div class="nav-i" onclick="showView('fotografia',this)"><i class="ti ti-camera"></i>Fotografía</div>
+      </div>
+    </div>
+    <div class="nav-s" style="margin-top:8px">Herramientas</div>
+    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+  `;
+  const nbEl = navComercial.querySelector('#nb');
+  if(nbEl) nbEl.textContent = leads.length;
+}
+setTimeout(()=>{ reorganizarSidebarV6(); }, 3500);
+
+// ─── Interceptar showView para las nuevas vistas ───
+const __origShowView_v6 = showView;
+showView = function(v, el){
+  if(v === 'amoblados-clientes'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'amoblados-clientes';
+    document.getElementById('vtitle').textContent = '🛋️ Cotizaciones para clientes';
+    renderAmobladosClientes(document.getElementById('mc'));
+    return;
+  }
+  if(v === 'amoblados-adicionales'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'amoblados-adicionales';
+    document.getElementById('vtitle').textContent = '➕ Adicionales';
+    renderAmobladosAdicionales(document.getElementById('mc'));
+    return;
+  }
+  __origShowView_v6(v, el);
+};
+
+// ─────────────────────────────────────────────────
+// 1) FOTOGRAFÍA — lista compacta + estados + orden por recientes
+// ─────────────────────────────────────────────────
+function getFotoEstado(l){
+  const nuevas = (l.fotos_nuevas||[]).length;
+  const antiguas = (l.fotos_antiguas||[]).length;
+  const bruto = (l.fotos_bruto||[]).length;
+  if(nuevas > 0) return {nivel:'verde', label:'✅ Edición nueva', pct:100, color:'var(--green)', bg:'var(--green-l)', text:'var(--green-d)'};
+  if(antiguas > 0) return {nivel:'naranja', label:'⚠️ Edición antigua', pct:66, color:'var(--amber)', bg:'var(--amber-l)', text:'var(--amber-d)'};
+  if(bruto > 0) return {nivel:'rojo', label:'🚨 Solo bruto', pct:33, color:'var(--red)', bg:'var(--red-l)', text:'var(--red-d)'};
+  return {nivel:'gris', label:'📭 Sin fotos', pct:0, color:'var(--text3)', bg:'var(--bg)', text:'var(--text2)'};
+}
+renderFotografia = function(c){
+  const propiedades = leads.filter(l => l.address).sort((a,b) => b.id - a.id);
+  // Stats arriba
+  const rojas = propiedades.filter(l => getFotoEstado(l).nivel === 'rojo').length;
+  const naranjas = propiedades.filter(l => getFotoEstado(l).nivel === 'naranja').length;
+  const verdes = propiedades.filter(l => getFotoEstado(l).nivel === 'verde').length;
+  const sin = propiedades.filter(l => getFotoEstado(l).nivel === 'gris').length;
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div style="background:var(--green-l);border:2px solid rgba(22,163,74,.2);border-radius:var(--rsm);padding:10px 12px"><div style="font-size:10px;color:var(--green-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Listas (verde)</div><div class="N" style="font-size:22px;font-weight:900;color:var(--green-d)">${verdes}</div></div>
+      <div style="background:var(--amber-l);border:2px solid rgba(217,119,6,.2);border-radius:var(--rsm);padding:10px 12px"><div style="font-size:10px;color:var(--amber-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Edición antigua</div><div class="N" style="font-size:22px;font-weight:900;color:var(--amber-d)">${naranjas}</div></div>
+      <div style="background:var(--red-l);border:2px solid rgba(220,38,38,.2);border-radius:var(--rsm);padding:10px 12px"><div style="font-size:10px;color:var(--red-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Solo bruto 🚨</div><div class="N" style="font-size:22px;font-weight:900;color:var(--red-d)">${rojas}</div></div>
+      <div style="background:var(--bg);border:2px solid var(--border);border-radius:var(--rsm);padding:10px 12px"><div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Sin fotos</div><div class="N" style="font-size:22px;font-weight:900;color:var(--text2)">${sin}</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Ordenado por más reciente primero · ${propiedades.length} propiedades · Click para expandir</div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+  `;
+  propiedades.forEach(l => {
+    const est = getFotoEstado(l);
+    const totalFotos = (l.fotos_bruto||[]).length + (l.fotos_antiguas||[]).length + (l.fotos_nuevas||[]).length;
+    html += `
+    <div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ${est.color};border-radius:var(--rsm);overflow:hidden">
+      <div onclick="toggleFotoProp(${l.id})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer;transition:background .13s" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='var(--surface)'">
+        <div style="flex:1;min-width:0">
+          <div class="N" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+          <div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.address}</div>
+        </div>
+        <span style="font-size:10px;font-weight:800;background:${est.bg};color:${est.text};padding:3px 10px;border-radius:20px;flex-shrink:0;font-family:'Nunito',sans-serif">${est.label}</span>
+        <span style="font-size:11px;font-weight:700;color:var(--text2);min-width:50px;text-align:right;flex-shrink:0">${totalFotos} foto${totalFotos!==1?'s':''}</span>
+        <i class="ti ti-chevron-down" id="foto-arrow-${l.id}" style="font-size:16px;color:var(--text3);flex-shrink:0"></i>
+      </div>
+      <div id="foto-content-${l.id}" style="display:none;padding:0 14px 14px;background:var(--surface2);border-top:1px solid var(--border)">
+        ${renderFotoBlock(l, 'fotos_bruto', '🚨 Fotografía en bruto', 'var(--red)', est.nivel==='rojo')}
+        ${renderFotoBlock(l, 'fotos_antiguas', '⚠️ Fotografía edición antigua', 'var(--amber)', est.nivel==='naranja')}
+        ${renderFotoBlock(l, 'fotos_nuevas', '✅ Fotografía edición nueva', 'var(--green)', est.nivel==='verde')}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  c.innerHTML = html;
+};
+function renderFotoBlock(l, field, titulo, color, isCurrent){
+  const fotos = l[field] || [];
+  return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="N" style="font-size:11px;font-weight:900;color:${color}">${titulo}${isCurrent?' (actual)':''} <span style="color:var(--text2);font-weight:700">· ${fotos.length}</span></div>
+      <label class="btn btn-sm" style="cursor:pointer">
+        <i class="ti ti-plus"></i>Agregar
+        <input type="file" accept="image/*" multiple style="display:none" onchange="addFotosTo(${l.id},'${field}',this)">
+      </label>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px">
+      ${fotos.map((f,i) => `
+        <div style="border:1px solid var(--border);border-radius:6px;overflow:hidden;background:var(--surface)">
+          <div style="position:relative">
+            <img src="${f.data}" style="width:100%;height:75px;object-fit:cover;display:block;cursor:pointer" onclick="openLightbox('${f.data}')">
+            <button onclick="deleteFotoFrom(${l.id},'${field}',${i})" style="position:absolute;top:2px;right:2px;background:rgba(220,38,38,.9);color:#fff;border:none;border-radius:50%;width:18px;height:18px;cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center">×</button>
+          </div>
+          <input value="${(f.link||'').replace(/"/g,'&quot;')}" placeholder="🔗 Link..." style="width:100%;font-size:9px;padding:3px 5px;border:none;border-top:1px solid var(--border);background:var(--bg);font-family:inherit" onchange="updFotoLink(${l.id},'${field}',${i},this.value)">
+          ${f.link ? `<a href="${f.link}" target="_blank" style="display:block;font-size:8px;color:var(--blue-d);font-weight:700;padding:2px 5px;text-decoration:none;background:var(--blue-l);text-align:center">↗ Abrir</a>` : ''}
+        </div>
+      `).join('') || '<div style="grid-column:1/-1;font-size:10px;color:var(--text3);font-style:italic;text-align:center;padding:8px">Sin fotos</div>'}
+    </div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────────────
+// 2) AMOBLADOS — Adicionales aparte + cotizador SIN adicionales
+// ─────────────────────────────────────────────────
+// Limpiar adicionales de cada plantilla (los muevo a una constante separada)
+if(window.AMOBLADOS_TPL && !window.AMOBLADOS_TPL.studio.cleaned){
+  Object.keys(window.AMOBLADOS_TPL).forEach(k => {
+    window.AMOBLADOS_TPL[k].sectores = window.AMOBLADOS_TPL[k].sectores.filter(s => s.nombre !== 'ADICIONALES');
+    window.AMOBLADOS_TPL[k].cleaned = true;
+  });
+}
+window.AMOBLADOS_ADICIONALES = [
+  ['CORTINA ROLLER',2,41200,123600,111240],
+  ['CHAPA ELECTRONICA',1,150000,225000,202500],
+  ['LUMINARIA BAÑO',1,10000,15000,13500],
+  ['LUMINARIA TRADICIONAL',4,10000,60000,54000],
+  ['ESTACIONAMIENTOS',1,20000,30000,27000]
+];
+function renderAmobladosAdicionales(c){
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text2);font-weight:700">Items adicionales aplicables a cualquier plantilla</div>
+      <button class="btn btn-p btn-sm" onclick="copiarAdicionales()"><i class="ti ti-copy"></i>Copiar lista para correo</button>
+    </div>
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:10px 14px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg)">Item</th>
+          <th style="text-align:center;padding:10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);width:60px">Un.</th>
+          <th style="text-align:right;padding:10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);width:110px">Cotización</th>
+          <th style="text-align:right;padding:10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);width:110px">+ 50%</th>
+          <th style="text-align:right;padding:10px 14px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);width:110px">+ 35%</th>
+        </tr></thead>
+        <tbody>
+          ${window.AMOBLADOS_ADICIONALES.map(it=>`<tr>
+            <td style="padding:10px 14px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+            <td style="padding:10px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid var(--border)">${it[1]}</td>
+            <td style="padding:10px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border)">${formatCLP(it[2])}</td>
+            <td style="padding:10px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border)">${formatCLP(it[3])}</td>
+            <td style="padding:10px 14px;text-align:right;font-size:12px;font-weight:700;color:var(--purple-d);border-bottom:1px solid var(--border)">${formatCLP(it[4])}</td>
+          </tr>`).join('')}
+          <tr style="background:var(--bg)">
+            <td colspan="3" style="padding:10px 14px;font-size:11px;font-weight:900;font-family:'Nunito',sans-serif;text-align:right">TOTAL ADICIONALES</td>
+            <td style="padding:10px;text-align:right;font-size:13px;font-weight:900;color:var(--text)">${formatCLP(453600)}</td>
+            <td style="padding:10px 14px;text-align:right;font-size:13px;font-weight:900;color:var(--purple-d)">${formatCLP(408240)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="font-size:10px;color:var(--text2);font-style:italic;margin-top:10px">Valores no incluyen IVA 19%</div>
+  `;
+  c.innerHTML = html;
+}
+function copiarAdicionales(){
+  let texto = '🛋️ DOMUS RENTALS — Adicionales\n\n';
+  window.AMOBLADOS_ADICIONALES.forEach(it => {
+    texto += `• ${it[0]}: ${it[1]} un. — ${formatCLP(it[3])}\n`;
+  });
+  texto += `\n💰 TOTAL: ${formatCLP(453600)}\n`;
+  texto += `💸 CON DESCUENTO: ${formatCLP(408240)}\n`;
+  texto += `\n_Valores no incluyen IVA 19%_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(texto);
+  toast('📋 Adicionales copiados al portapapeles');
+}
+
+// Sobrescribir renderAmobladosCotizador para agregar botón "Copiar"
+const __origRenderCotizador = renderAmobladosCotizador;
+renderAmobladosCotizador = function(c){
+  __origRenderCotizador(c);
+  // Agregar botón copiar arriba a la derecha
+  const firstDiv = c.querySelector('div');
+  if(firstDiv && !c.querySelector('.copy-amob-btn')){
+    const btnContainer = document.createElement('div');
+    btnContainer.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:10px';
+    btnContainer.innerHTML = `<button class="btn btn-p btn-sm copy-amob-btn" onclick="copiarCotizacionInterna()"><i class="ti ti-copy"></i>Copiar cotización para correo</button>`;
+    c.insertBefore(btnContainer, c.firstChild);
+  }
+};
+function copiarCotizacionInterna(){
+  const tplKey = window.AMOBLADOS_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  let texto = `🛋️ DOMUS RENTALS — Cotización ${tpl.label}\n\n`;
+  tpl.sectores.forEach(s => {
+    texto += `📦 ${s.nombre}\n`;
+    s.items.forEach(it => {
+      texto += `  • ${it[0]}: ${it[1]} un. — ${formatCLP(it[3])}\n`;
+    });
+    texto += `\n`;
+  });
+  texto += `💰 TOTAL AMOBLADO: ${formatCLP(tpl.totales.amob)}\n`;
+  if(tpl.totales.amobDscto) texto += `💸 CON DESCUENTO: ${formatCLP(tpl.totales.amobDscto)}\n`;
+  texto += `\n_Valores no incluyen IVA 19%_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(texto);
+  toast('📋 Cotización copiada');
+}
+
+// ─────────────────────────────────────────────────
+// 3) AMOBLADOS — Versión Clientes (sin descuentos internos, lista para presentar)
+// ─────────────────────────────────────────────────
+window.AMOBLADOS_CLI_CURRENT = 'studio';
+function renderAmobladosClientes(c){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${Object.entries(window.AMOBLADOS_TPL).map(([k,t])=>`
+          <button onclick="window.AMOBLADOS_CLI_CURRENT='${k}'; renderAmobladosClientes(document.getElementById('mc'))" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:var(--rsm);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:12px">
+            <span style="font-size:18px">${t.emoji}</span>${t.label}
+          </button>
+        `).join('')}
+      </div>
+      <button class="btn btn-p btn-sm" onclick="copiarCotizacionCliente()"><i class="ti ti-copy"></i>Copiar para enviar</button>
+    </div>
+    <!-- Encabezado bonito -->
+    <div style="background:linear-gradient(135deg,#5b21b6,#1e40af);color:#fff;padding:24px 28px;border-radius:var(--r);margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <span style="font-size:32px">${tpl.emoji}</span>
+        <div>
+          <div style="font-size:12px;opacity:.85;font-weight:700;text-transform:uppercase;letter-spacing:.1em">Cotización amoblado</div>
+          <div class="N" style="font-size:22px;font-weight:900">${tpl.label}</div>
+        </div>
+      </div>
+      <div style="font-size:12px;opacity:.9;margin-top:4px">Domus Rentals · Plan integral de amoblado</div>
+    </div>
+    <!-- Resumen total -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--rsm);padding:14px 18px"><div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Total amoblado</div><div class="N" style="font-size:24px;font-weight:900;color:var(--text);margin-top:3px">${formatCLP(tpl.totales.amob)}</div></div>
+      ${tpl.totales.amobDscto?`<div style="background:var(--green-l);border:2px solid var(--green);border-radius:var(--rsm);padding:14px 18px"><div style="font-size:10px;color:var(--green-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Con descuento</div><div class="N" style="font-size:24px;font-weight:900;color:var(--green-d);margin-top:3px">${formatCLP(tpl.totales.amobDscto)}</div></div>`:''}
+    </div>
+  `;
+  // Tabla sin las columnas internas
+  tpl.sectores.forEach(s => {
+    html += `
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden">
+        <div style="background:var(--purple-l);padding:10px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:13px;color:var(--purple-d);border-bottom:2px solid var(--border)">${s.nombre}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th>
+            <th style="text-align:center;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:80px">Cant.</th>
+            <th style="text-align:right;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:140px">Valor</th>
+          </tr></thead>
+          <tbody>
+            ${s.items.map(it=>`<tr>
+              <td style="padding:9px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+              <td style="padding:9px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid var(--border)">${it[1]}</td>
+              <td style="padding:9px 16px;text-align:right;font-size:13px;font-weight:700;color:var(--text);border-bottom:1px solid var(--border)">${formatCLP(it[3])}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+  html += `<div style="font-size:11px;color:var(--text2);font-style:italic;text-align:center;padding:14px;border-top:2px solid var(--border);margin-top:10px">Valores no incluyen IVA 19% · Adicionales (cortinas, chapa electrónica, etc.) se cotizan aparte</div>`;
+  c.innerHTML = html;
+}
+function copiarCotizacionCliente(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  let texto = `*🛋️ DOMUS RENTALS*\n*Cotización ${tpl.label}*\n\n`;
+  tpl.sectores.forEach(s => {
+    texto += `*${s.nombre}*\n`;
+    s.items.forEach(it => {
+      texto += `• ${it[0]} (${it[1]}) — ${formatCLP(it[3])}\n`;
+    });
+    texto += `\n`;
+  });
+  texto += `*💰 TOTAL: ${formatCLP(tpl.totales.amob)}*\n`;
+  if(tpl.totales.amobDscto) texto += `*💸 CON DESCUENTO: ${formatCLP(tpl.totales.amobDscto)}*\n`;
+  texto += `\n_Valores no incluyen IVA 19%_\n`;
+  texto += `_Adicionales (cortinas, chapa electrónica, luminarias, estacionamientos) se cotizan aparte_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(texto);
+  toast('📋 Cotización lista para enviar');
+}
+
+// ─────────────────────────────────────────────────
+// 4) ALIANZAS — solo admin+amob + estado de pago
+// ─────────────────────────────────────────────────
+function isLeadPagado(l){
+  // Considerar pagado si tiene check de "Pago de amoblado recibido" (index 12) o si tiene voucher
+  return (l.checks && l.checks[12]) || !!l.voucher;
+}
+renderAlianzas = function(c){
+  const alianzas = getAlianzas();
+  let html = `
+    <div style="background:var(--blue-l);border:2px solid rgba(37,99,235,.2);border-radius:var(--rsm);padding:10px 14px;margin-bottom:14px;font-size:11px;color:var(--blue-d);font-weight:700">ℹ️ Solo se muestran clientes con contrato de Administración + Amoblado</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--text2);font-weight:700">${alianzas.length} alianza${alianzas.length!==1?'s':''} registrada${alianzas.length!==1?'s':''}</div>
+      <button class="btn btn-p" onclick="addAlianza()"><i class="ti ti-plus"></i>Nueva alianza</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px">
+  `;
+  alianzas.forEach(a => {
+    // Filtrar solo leads con admin_amob
+    const leadsAsig = (a.leads_asignados||[])
+      .map(id => leads.find(l => l.id === id))
+      .filter(l => l && l.tipo_contrato === 'admin_amob');
+    const pagados = leadsAsig.filter(isLeadPagado).length;
+    const pendientes = leadsAsig.length - pagados;
+    html += `
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:14px 16px;cursor:pointer;transition:all .15s" onclick="openAlianza('${a.id}')" onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 18px rgba(100,60,220,.1)'" onmouseout="this.style.transform='';this.style.boxShadow=''">
+      <div class="N" style="font-size:14px;font-weight:900;margin-bottom:8px">${a.nombre||'Sin nombre'}</div>
+      <div style="display:flex;gap:6px;margin-bottom:10px">
+        ${pagados>0?`<span style="font-size:10px;font-weight:800;background:var(--green-l);color:var(--green-d);padding:2px 8px;border-radius:20px">✅ ${pagados} pagado${pagados!==1?'s':''}</span>`:''}
+        ${pendientes>0?`<span style="font-size:10px;font-weight:800;background:var(--amber-l);color:var(--amber-d);padding:2px 8px;border-radius:20px">⚠️ ${pendientes} pendiente${pendientes!==1?'s':''}</span>`:''}
+      </div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.5">
+        ${a.cuenta_banco?`🏦 ${a.cuenta_banco} ${a.cuenta_tipo||''}<br>`:''}
+        ${a.monto_por_depto?`💰 ${a.monto_por_depto} por depto`:''}
+      </div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text2);font-weight:700;margin-bottom:6px">👥 Clientes Adm+Amob (${leadsAsig.length})</div>
+        ${leadsAsig.length===0?'<div style="font-size:11px;color:var(--text3);font-style:italic">Sin clientes admin+amob</div>':leadsAsig.slice(0,5).map(l=>{
+          const pagado = isLeadPagado(l);
+          return `<div style="display:flex;align-items:center;gap:6px;font-size:11px;padding:3px 0;border-left:3px solid ${pagado?'var(--green)':'var(--amber)'};padding-left:8px;margin-bottom:3px;background:${pagado?'var(--green-l)':'var(--amber-l)'};border-radius:4px;padding-top:3px;padding-bottom:3px"><span style="flex:1;color:${pagado?'var(--green-d)':'var(--amber-d)'};font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</span><span style="font-size:9px;font-weight:900;color:${pagado?'var(--green-d)':'var(--amber-d)'};flex-shrink:0">${pagado?'✅ Pagado':'⚠️ Pendiente'}</span></div>`;
+        }).join('')}
+        ${leadsAsig.length>5?`<div style="font-size:10px;color:var(--text3);font-style:italic;margin-top:3px">+ ${leadsAsig.length-5} más</div>`:''}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  c.innerHTML = html;
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
