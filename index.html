@@ -3784,6 +3784,66 @@ renderModal = function(){
     });
   }, 350);
 };
+  // ═══ FIX V8.1: Restaurar span nb del Pipeline (oculto) ═══
+function reorganizarSidebarV81(){
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial) return;
+  navComercial.dataset.v8 = '';
+  navComercial.dataset.v81 = 'true';
+  navComercial.innerHTML = `
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('propietarios')">
+        <span class="sb-section-arrow" id="arr-propietarios">▼</span>
+        <span>👥 Propietarios</span>
+      </div>
+      <div class="sb-section-items" id="sb-propietarios">
+        <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline <span class="nb" id="nb" style="display:none">0</span></div>
+        <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+        <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+        <div class="nav-i" onclick="showView('alianzas',this)"><i class="ti ti-handshake"></i>Alianzas</div>
+        <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('amoblados')">
+        <span class="sb-section-arrow collapsed" id="arr-amoblados">▶</span>
+        <span>🛋️ Amoblados</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-amoblados">
+        <div class="nav-i" onclick="showView('amoblados-cotizador',this)"><i class="ti ti-calculator"></i>Cotizador (interno)</div>
+        <div class="nav-i" onclick="showView('amoblados-clientes',this)"><i class="ti ti-presentation"></i>Vista clientes</div>
+        <div class="nav-i" onclick="showView('amoblados-adicionales',this)"><i class="ti ti-plus"></i>Adicionales</div>
+        <div class="nav-i" onclick="showView('amoblados-calc',this)"><i class="ti ti-math-symbols"></i>Calculadora</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('documentos')">
+        <span class="sb-section-arrow collapsed" id="arr-documentos">▶</span>
+        <span>📄 Documentos</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-documentos">
+        <div class="nav-i" onclick="showView('documentos-vista',this)"><i class="ti ti-folder"></i>Carpetas</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('marketing')">
+        <span class="sb-section-arrow collapsed" id="arr-marketing">▶</span>
+        <span>📣 Marketing</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-marketing">
+        <div class="nav-i" onclick="showView('fotografia',this)"><i class="ti ti-camera"></i>Fotografía</div>
+      </div>
+    </div>
+    <div class="nav-s" style="margin-top:8px">Herramientas</div>
+    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+  `;
+}
+// Pisar la versión anterior y forzar la nueva
+setTimeout(()=>{ reorganizarSidebarV81(); }, 200);
+setTimeout(()=>{ reorganizarSidebarV81(); }, 1000);
+setTimeout(()=>{ reorganizarSidebarV81(); }, 3000);
+setTimeout(()=>{ reorganizarSidebarV81(); }, 5000);
 // Load from cloud on startup
 loadFromCloud();
 </script>
