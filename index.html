@@ -3844,6 +3844,288 @@ setTimeout(()=>{ reorganizarSidebarV81(); }, 200);
 setTimeout(()=>{ reorganizarSidebarV81(); }, 1000);
 setTimeout(()=>{ reorganizarSidebarV81(); }, 3000);
 setTimeout(()=>{ reorganizarSidebarV81(); }, 5000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ CAMBIOS V9: Adicionales x tipo + Aire + Calc + PDF ════
+// ═══════════════════════════════════════════════════════════
+
+// 1) Adicionales por tipología
+window.ADIC_POR_TPL = {
+  studio: 408240,
+  h1b1: 595944,
+  h2b1: 675513,
+  h2b2: 740272
+};
+
+// 2) Aire a $598.990
+window.AIRE_COSTO = 598990;
+
+// 3) Recalcular total en vista clientes usando adic por tipología
+cliCalcTotal = function(){
+  const tpl = window.AMOBLADOS_TPL[window.AMOBLADOS_CLI_CURRENT];
+  const config = window.cliConfig;
+  let subtotal = 0;
+  if(config.incluirAmoblado) subtotal += (tpl && tpl.totales.amob) || 0;
+  if(config.incluirAdicionales) subtotal += window.ADIC_POR_TPL[window.AMOBLADOS_CLI_CURRENT] || 408240;
+  if(config.incluirAire) subtotal += window.AIRE_COSTO;
+  const iva = config.conIva ? Math.round(subtotal * 0.19) : 0;
+  return {subtotal, iva, total: subtotal + iva};
+};
+
+// 4) Reescribir renderAmobladosClientes para usar adic por tipo
+renderAmobladosClientes = function(c){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const totales = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  const adicCosto = window.ADIC_POR_TPL[tplKey] || 408240;
+  let html = `
+    <div class="no-print" style="background:var(--surface2);border:2px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="N" style="font-size:13px;font-weight:900">🛋️ Selecciona la cotización</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="copiarCotizacionCliente()"><i class="ti ti-copy"></i>Copiar</button>
+          <button class="btn btn-sm btn-p" onclick="descargarCotizacion()"><i class="ti ti-download"></i>Descargar PDF</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">📐 Tipo</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        ${Object.entries(window.AMOBLADOS_TPL).map(([k,t])=>`
+          <button onclick="window.AMOBLADOS_CLI_CURRENT='${k}'; renderAmobladosClientes(document.getElementById('mc'))" style="padding:7px 12px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px">${t.emoji} ${t.label}</button>
+        `).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">✨ ¿Qué incluye?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAmoblado?'var(--green)':'var(--border2)'};background:${config.incluirAmoblado?'var(--green-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.incluirAmoblado?'checked':''} onchange="toggleCliOpt('incluirAmoblado')" style="accent-color:var(--green)"> 🛋️ Amoblado</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAdicionales?'var(--blue)':'var(--border2)'};background:${config.incluirAdicionales?'var(--blue-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.incluirAdicionales?'checked':''} onchange="toggleCliOpt('incluirAdicionales')" style="accent-color:var(--blue)"> ➕ Adicionales</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAire?'var(--sky)':'var(--border2)'};background:${config.incluirAire?'var(--sky-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.incluirAire?'checked':''} onchange="toggleCliOpt('incluirAire')" style="accent-color:var(--sky)"> ❄️ Aire ($598.990)</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.conIva?'var(--amber)':'var(--border2)'};background:${config.conIva?'var(--amber-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.conIva?'checked':''} onchange="toggleCliOpt('conIva')" style="accent-color:var(--amber)"> 🧾 IVA 19%</label>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">🎨 Estilo</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">
+        ${window.ESTILOS.map(e => `<div onclick="setEstiloCli('${e.id}')" style="padding:10px 12px;border:2px solid ${config.estilo===e.id?'var(--purple)':'var(--border2)'};background:${config.estilo===e.id?'var(--purple-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer"><div style="font-size:12px;font-weight:900;color:${config.estilo===e.id?'var(--purple-d)':'var(--text)'};font-family:'Nunito',sans-serif">${e.label}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${e.desc}</div></div>`).join('')}
+      </div>
+    </div>
+    <div id="cotizacion-print">
+      <div style="background:linear-gradient(135deg,#5b21b6,#1e40af);color:#fff;padding:28px 32px;border-radius:var(--r);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-size:36px">${tpl.emoji}</span>
+          <div>
+            <div style="font-size:11px;opacity:.85;font-weight:700;text-transform:uppercase;letter-spacing:.12em">Cotización de amoblado</div>
+            <div class="N" style="font-size:24px;font-weight:900;letter-spacing:-.02em;margin-top:2px">${tpl.label}</div>
+            <div style="font-size:13px;opacity:.95;margin-top:6px">Estilo: <strong>${estiloSel.label.replace(/[^\w\s]/g,'').trim()}</strong> · Domus Rentals</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:var(--surface);border:2px solid var(--purple);border-radius:var(--r);padding:18px 22px;margin-bottom:14px;page-break-inside:avoid">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--purple-d);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">💰 Resumen económico</div>
+        ${config.incluirAmoblado?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>🛋️ Amoblado de diseño</span><span style="font-weight:700">${formatCLP(tpl.totales.amob)}</span></div>`:''}
+        ${config.incluirAdicionales?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>➕ Adicionales</span><span style="font-weight:700">${formatCLP(adicCosto)}</span></div>`:''}
+        ${config.incluirAire?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>❄️ Aire acondicionado</span><span style="font-weight:700">${formatCLP(window.AIRE_COSTO)}</span></div>`:''}
+        <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:800"><span>Subtotal</span><span>${formatCLP(totales.subtotal)}</span></div>
+        ${config.conIva?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:var(--text2)"><span>IVA (19%)</span><span style="font-weight:700">${formatCLP(totales.iva)}</span></div>`:''}
+        <div style="border-top:2px solid var(--purple);margin:10px 0 8px"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+          <span class="N" style="font-size:16px;font-weight:900;color:var(--purple-d)">TOTAL</span>
+          <span class="N" style="font-size:30px;font-weight:900;color:var(--purple-d)">${formatCLP(totales.total)}</span>
+        </div>
+        ${!config.conIva?`<div style="font-size:10px;color:var(--text2);font-style:italic;text-align:right;margin-top:4px">Valor no incluye IVA 19%</div>`:''}
+      </div>
+  `;
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach(s => {
+      html += `<div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+        <div style="background:var(--purple-l);padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;color:var(--purple-d);border-bottom:2px solid var(--border)">${s.nombre}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr><th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th><th style="text-align:center;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:90px">Cantidad</th></tr></thead>
+          <tbody>${s.items.map(it=>`<tr><td style="padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td><td style="padding:8px 16px;text-align:center;font-size:13px;font-weight:800;border-bottom:1px solid var(--border)">${it[1]}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+    });
+  }
+  if(config.incluirAdicionales){
+    html += `<div style="background:var(--surface);border:2px solid var(--blue);border-radius:var(--r);margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+      <div style="background:var(--blue-l);padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;color:var(--blue-d);border-bottom:2px solid var(--blue)">➕ ADICIONALES</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th><th style="text-align:center;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:90px">Cantidad</th></tr></thead>
+        <tbody>${window.AMOBLADOS_ADICIONALES.map(it=>`<tr><td style="padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td><td style="padding:8px 16px;text-align:center;font-size:13px;font-weight:800;border-bottom:1px solid var(--border)">${it[1]}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>`;
+  }
+  if(config.incluirAire){
+    html += `<div style="background:var(--sky-l);border:2px solid var(--sky);border-radius:var(--r);margin-bottom:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;page-break-inside:avoid"><span style="font-size:24px">❄️</span><div style="flex:1"><div class="N" style="font-size:13px;font-weight:900;color:var(--sky-d)">Aire acondicionado</div><div style="font-size:11px;color:var(--text2)">Instalación incluida</div></div></div>`;
+  }
+  html += `<div style="margin-top:20px;text-align:center;font-size:11px;color:var(--text2)">Domus Rentals · Cotización generada el ${new Date().toLocaleDateString('es-CL')}</div></div>`;
+  c.innerHTML = html;
+};
+
+// Copy cotización con adic dinámico
+copiarCotizacionCliente = function(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const totales = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  const adicCosto = window.ADIC_POR_TPL[tplKey] || 408240;
+  let texto = `*🛋️ DOMUS RENTALS*\n*Cotización ${tpl.label}*\n_Estilo: ${estiloSel.label.replace(/[^\w\s]/g,'').trim()}_\n\n`;
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach(s => {
+      texto += `*${s.nombre}*\n`;
+      s.items.forEach(it => { texto += `• ${it[0]} (${it[1]} un.)\n`; });
+      texto += `\n`;
+    });
+  }
+  if(config.incluirAdicionales){
+    texto += `*➕ ADICIONALES*\n`;
+    window.AMOBLADOS_ADICIONALES.forEach(it => { texto += `• ${it[0]} (${it[1]} un.)\n`; });
+    texto += `\n`;
+  }
+  if(config.incluirAire) texto += `*❄️ Aire acondicionado incluido*\n\n`;
+  texto += `*💰 RESUMEN:*\n`;
+  if(config.incluirAmoblado) texto += `• Amoblado: ${formatCLP(tpl.totales.amob)}\n`;
+  if(config.incluirAdicionales) texto += `• Adicionales: ${formatCLP(adicCosto)}\n`;
+  if(config.incluirAire) texto += `• Aire acondicionado: ${formatCLP(window.AIRE_COSTO)}\n`;
+  texto += `• Subtotal: ${formatCLP(totales.subtotal)}\n`;
+  if(config.conIva) texto += `• IVA (19%): ${formatCLP(totales.iva)}\n`;
+  texto += `\n*🧾 TOTAL: ${formatCLP(totales.total)}*${config.conIva?' (con IVA)':''}\n`;
+  if(!config.conIva) texto += `\n_Valor no incluye IVA 19%_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(texto);
+  toast('📋 Cotización lista');
+};
+
+// 5) FIX DESCARGAR PDF — usa nueva ventana
+descargarCotizacion = function(){
+  const cot = document.getElementById('cotizacion-print');
+  if(!cot){ toast('⚠️ No se encontró cotización'); return; }
+  const w = window.open('', '_blank', 'width=900,height=700');
+  if(!w){ toast('⚠️ Permite popups para descargar'); return; }
+  // Copiar estilos y fonts
+  let styleHTML = '';
+  document.querySelectorAll('link[rel="stylesheet"], style').forEach(s => styleHTML += s.outerHTML);
+  w.document.write(`<!DOCTYPE html><html lang="es"><head>
+    <meta charset="UTF-8"><title>Cotización Domus Rentals</title>
+    ${styleHTML}
+    <style>
+      body{padding:30px;background:#fff;font-family:'Nunito Sans',sans-serif}
+      @media print { @page{size:A4;margin:1.5cm} body{padding:0} }
+    </style>
+  </head><body>${cot.outerHTML}
+  <script>setTimeout(()=>{window.print();},700);</script>
+  </body></html>`);
+  w.document.close();
+};
+
+// 6) CALCULADORA INTERNA (reemplaza el iframe)
+window.CALC_DEFAULTS = {
+  studio_amob: 2922194,
+  h1b1_amob: 4127924,
+  h2b1_amob: 5240310,
+  h2b2_amob: 5297295,
+  studio_adic: 408240,
+  h1b1_adic: 595944,
+  h2b1_adic: 675513,
+  h2b2_adic: 740272,
+  aire: 598990,
+  iva_pct: 19
+};
+window.CALC_CONFIG = window.CALC_CONFIG || {tipologia: 'studio', incAmob: true, incAdic: false, incAire: false, incIva: false};
+function getCalcPrices(){
+  const stored = localStorage.getItem('domus_calc_prices');
+  if(stored){ try { return {...window.CALC_DEFAULTS, ...JSON.parse(stored)}; } catch(e){} }
+  return {...window.CALC_DEFAULTS};
+}
+function saveCalcPrices(p){ localStorage.setItem('domus_calc_prices', JSON.stringify(p)); }
+function updCalcPrice(key, val){
+  const p = getCalcPrices();
+  p[key] = parseFloat(val) || 0;
+  saveCalcPrices(p);
+  renderCalculadora(document.getElementById('mc'));
+}
+function resetCalcPrices(){
+  if(!confirm('¿Restaurar precios por defecto?')) return;
+  localStorage.removeItem('domus_calc_prices');
+  renderCalculadora(document.getElementById('mc'));
+  toast('🔄 Precios restablecidos');
+}
+function calcGetTotal(tip){
+  const p = getCalcPrices();
+  const c = window.CALC_CONFIG;
+  let sub = 0;
+  if(c.incAmob) sub += p[tip+'_amob'] || 0;
+  if(c.incAdic) sub += p[tip+'_adic'] || 0;
+  if(c.incAire) sub += p.aire || 0;
+  const iva = c.incIva ? Math.round(sub * (p.iva_pct/100)) : 0;
+  return {sub, iva, total: sub + iva};
+}
+function toggleCalcOpt(opt){
+  window.CALC_CONFIG[opt] = !window.CALC_CONFIG[opt];
+  renderCalculadora(document.getElementById('mc'));
+}
+function setCalcTipologia(t){
+  window.CALC_CONFIG.tipologia = t;
+  renderCalculadora(document.getElementById('mc'));
+}
+renderCalculadora = function(c){
+  const p = getCalcPrices();
+  const config = window.CALC_CONFIG;
+  const t = calcGetTotal(config.tipologia);
+  const tipos = [
+    {id:'studio', label:'Studio', emoji:'🏠'},
+    {id:'h1b1', label:'1 dorm 1 baño', emoji:'🏘️'},
+    {id:'h2b1', label:'2 dorms 1 baño', emoji:'🏡'},
+    {id:'h2b2', label:'2 dorms 2 baños', emoji:'🏰'}
+  ];
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:11px;color:var(--text2);font-weight:700">Calcula cotizaciones rápidas con precios editables. Los precios se guardan en tu navegador.</div>
+      <button class="btn btn-sm" onclick="resetCalcPrices()"><i class="ti ti-refresh"></i>Restablecer precios</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start">
+      <!-- Calculadora -->
+      <div style="background:var(--surface);border:2px solid var(--purple);border-radius:var(--r);padding:18px 22px">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--purple-d);margin-bottom:14px;text-transform:uppercase;letter-spacing:.06em">🧮 Calculadora</div>
+        <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;margin-bottom:5px">Tipología</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+          ${tipos.map(t => `<button onclick="setCalcTipologia('${t.id}')" style="padding:7px 12px;border:2px solid ${config.tipologia===t.id?'var(--purple)':'var(--border2)'};background:${config.tipologia===t.id?'var(--purple)':'var(--surface)'};color:${config.tipologia===t.id?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px">${t.emoji} ${t.label}</button>`).join('')}
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:8px 0"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${config.incAmob?'checked':''} onchange="toggleCalcOpt('incAmob')" style="accent-color:var(--green)"><span style="font-size:13px;font-weight:700">🛋️ Amoblado</span></label></td>
+          <td style="padding:8px 0;text-align:right"><input type="number" value="${p[config.tipologia+'_amob']}" onchange="updCalcPrice('${config.tipologia}_amob',this.value)" style="width:140px;padding:5px 8px;font-size:12px;border:1px solid var(--border2);border-radius:6px;text-align:right;font-family:inherit;background:var(--bg)"></td></tr>
+          <tr><td style="padding:8px 0"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${config.incAdic?'checked':''} onchange="toggleCalcOpt('incAdic')" style="accent-color:var(--blue)"><span style="font-size:13px;font-weight:700">➕ Adicionales</span></label></td>
+          <td style="padding:8px 0;text-align:right"><input type="number" value="${p[config.tipologia+'_adic']}" onchange="updCalcPrice('${config.tipologia}_adic',this.value)" style="width:140px;padding:5px 8px;font-size:12px;border:1px solid var(--border2);border-radius:6px;text-align:right;font-family:inherit;background:var(--bg)"></td></tr>
+          <tr><td style="padding:8px 0"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${config.incAire?'checked':''} onchange="toggleCalcOpt('incAire')" style="accent-color:var(--sky)"><span style="font-size:13px;font-weight:700">❄️ Aire acond.</span></label></td>
+          <td style="padding:8px 0;text-align:right"><input type="number" value="${p.aire}" onchange="updCalcPrice('aire',this.value)" style="width:140px;padding:5px 8px;font-size:12px;border:1px solid var(--border2);border-radius:6px;text-align:right;font-family:inherit;background:var(--bg)"></td></tr>
+          <tr><td colspan="2" style="border-top:1px solid var(--border);padding-top:8px"></td></tr>
+          <tr><td style="padding:6px 0;font-size:13px;font-weight:700">Subtotal</td>
+          <td style="padding:6px 0;text-align:right;font-size:14px;font-weight:800">${formatCLP(t.sub)}</td></tr>
+          <tr><td style="padding:8px 0"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" ${config.incIva?'checked':''} onchange="toggleCalcOpt('incIva')" style="accent-color:var(--amber)"><span style="font-size:13px;font-weight:700">🧾 IVA</span><input type="number" value="${p.iva_pct}" onchange="updCalcPrice('iva_pct',this.value)" style="width:50px;padding:3px 6px;font-size:11px;border:1px solid var(--border2);border-radius:4px;text-align:center;font-family:inherit"><span style="font-size:11px">%</span></label></td>
+          <td style="padding:8px 0;text-align:right;font-size:13px;color:var(--text2);font-weight:700">${config.incIva?formatCLP(t.iva):'—'}</td></tr>
+          <tr><td colspan="2" style="border-top:2px solid var(--purple);padding-top:10px"></td></tr>
+          <tr><td style="padding:8px 0"><span class="N" style="font-size:18px;font-weight:900;color:var(--purple-d)">TOTAL</span></td>
+          <td style="padding:8px 0;text-align:right"><span class="N" style="font-size:26px;font-weight:900;color:var(--purple-d)">${formatCLP(t.total)}</span></td></tr>
+        </table>
+      </div>
+      <!-- Comparativa -->
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:18px 22px">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--text);margin-bottom:14px;text-transform:uppercase;letter-spacing:.06em">📊 Comparativa</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr><th style="text-align:left;padding:8px 10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);border-bottom:2px solid var(--border)">Tipo</th><th style="text-align:right;padding:8px 10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);border-bottom:2px solid var(--border)">Amob.</th><th style="text-align:right;padding:8px 10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);border-bottom:2px solid var(--border)">Adic.</th><th style="text-align:right;padding:8px 10px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--bg);border-bottom:2px solid var(--border)">Total c/aire</th></tr></thead>
+          <tbody>
+            ${tipos.map(t => {
+              const amob = p[t.id+'_amob'];
+              const adic = p[t.id+'_adic'];
+              const totalConAire = amob + adic + p.aire;
+              return `<tr><td style="padding:9px 10px;font-size:11px;font-weight:700;border-bottom:1px solid var(--border)">${t.emoji} ${t.label}</td><td style="padding:9px 10px;text-align:right;font-size:11px;border-bottom:1px solid var(--border)">${formatCLP(amob)}</td><td style="padding:9px 10px;text-align:right;font-size:11px;border-bottom:1px solid var(--border)">${formatCLP(adic)}</td><td style="padding:9px 10px;text-align:right;font-size:12px;font-weight:800;color:var(--purple-d);border-bottom:1px solid var(--border)">${formatCLP(totalConAire)}</td></tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+        <div style="font-size:10px;color:var(--text2);font-style:italic;margin-top:10px;text-align:right">Aire: ${formatCLP(p.aire)} · Valores sin IVA</div>
+      </div>
+    </div>
+  `;
+  c.innerHTML = html;
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
