@@ -3125,6 +3125,288 @@ renderAlianzas = function(c){
   html += `</div>`;
   c.innerHTML = html;
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ CAMBIOS V7: Vista clientes interactiva + alertas all ══
+// ═══════════════════════════════════════════════════════════
+
+// 1) Renombrar labels de plantillas (versión de DISEÑO)
+setTimeout(()=>{
+  if(window.AMOBLADOS_TPL){
+    window.AMOBLADOS_TPL.studio.label = 'STUDIO DE DISEÑO';
+    window.AMOBLADOS_TPL.h1b1.label = '1 DORM Y 1 BAÑO DE DISEÑO';
+    window.AMOBLADOS_TPL.h2b1.label = '2 DORMS Y 1 BAÑO DE DISEÑO';
+    window.AMOBLADOS_TPL.h2b2.label = '2 DORMS Y 2 BAÑOS DE DISEÑO';
+  }
+}, 1000);
+
+// 2) ALERTAS — mostrar TODAS (no solo top 5)
+const __origRenderAlertas_v7 = renderAlertas;
+renderAlertas = function(){
+  const stageOrder = {
+    'prospecto':'agendar reunión','reunion_agendada':'realizar la reunión','reunion_cursada':'definir tipo de contrato',
+    'resultado_reunion':'enviar solicitud de datos','correo_datos':'enviar contrato administración','contrato_enviado':'firmar contrato',
+    'contrato_firmado':'firmar contrato amoblado','amob_contrato_firmado':'enviar contrato amoblado','amob_contrato_enviado':'iniciar amoblado',
+    'amob_proceso':'recibir pago','amob_pagado':'tomar fotos','foto_tomada':'editar fotos','foto_editada':'publicar en plataformas','foto_publicada':'enviar correo de bienvenida'
+  };
+  const pendientes = leads.filter(l => l.stage !== 'cliente_activo');
+  if(pendientes.length === 0) return '';
+  pendientes.sort((a,b) => pct(b) - pct(a));
+  let html = `<div style="background:linear-gradient(135deg,#fff7ed,#fef3c7);border:2px solid var(--amber);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:22px">🔔</span>
+      <div style="flex:1">
+        <div class="N" style="font-size:14px;font-weight:900;color:var(--amber-d)">Propietarios pendientes (${pendientes.length})</div>
+        <div style="font-size:11px;color:var(--text2)">Click en cualquiera para avanzar al siguiente paso.</div>
+      </div>
+      <button onclick="toggleAlertasFull()" style="font-size:11px;padding:4px 10px;border:2px solid var(--amber);background:var(--surface);color:var(--amber-d);border-radius:20px;cursor:pointer;font-weight:800;font-family:'Nunito',sans-serif" id="alertas-toggle-btn">Ver todos ▼</button>
+    </div>
+    <div id="alertas-list" style="display:flex;flex-direction:column;gap:6px;max-height:280px;overflow-y:auto">
+  `;
+  pendientes.forEach(l => {
+    const p = pct(l);
+    const next = stageOrder[l.stage] || 'continuar';
+    const currentLabel = stageInfo(l.stage).label;
+    html += `<div onclick="openLead(${l.id})" style="background:var(--surface);border:2px solid var(--border);border-radius:var(--rsm);padding:9px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .13s" onmouseover="this.style.transform='translateX(3px)';this.style.borderColor='var(--amber)'" onmouseout="this.style.transform='';this.style.borderColor='var(--border)'">
+      <div style="flex:1;min-width:0">
+        <div class="N" style="font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+        <div style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.address || '—'}</div>
+      </div>
+      <div style="font-size:9px;font-weight:800;background:var(--amber-l);color:var(--amber-d);padding:3px 8px;border-radius:20px;flex-shrink:0">${currentLabel}</div>
+      <div style="font-size:10px;font-weight:700;color:var(--text2);font-style:italic;flex-shrink:0">→ ${next}</div>
+      <div style="font-size:12px;font-weight:900;font-family:'Nunito',sans-serif;color:${pctColor(p)};flex-shrink:0;min-width:34px;text-align:right">${p}%</div>
+    </div>`;
+  });
+  html += `</div></div>`;
+  return html;
+};
+function toggleAlertasFull(){
+  const list = document.getElementById('alertas-list');
+  const btn = document.getElementById('alertas-toggle-btn');
+  if(!list || !btn) return;
+  if(list.style.maxHeight === 'none'){
+    list.style.maxHeight = '280px';
+    btn.textContent = 'Ver todos ▼';
+  } else {
+    list.style.maxHeight = 'none';
+    btn.textContent = 'Contraer ▲';
+  }
+}
+
+// 3) VISTA CLIENTES INTERACTIVA
+window.cliConfig = {
+  incluirAmoblado: true,
+  incluirAdicionales: false,
+  incluirAire: false,
+  estilo: 'nordico',
+  conIva: false
+};
+window.AIRE_COSTO = 600000;
+window.ESTILOS = [
+  {id:'nordico', label:'❄️ Nórdico', desc:'Minimalista, blancos y maderas claras'},
+  {id:'rustico', label:'🌲 Rústico', desc:'Maderas oscuras, tonos tierra'},
+  {id:'industrial', label:'⚙️ Industrial', desc:'Metales, negros y grises'},
+  {id:'midcentury', label:'🎨 Mid Century', desc:'Colores vivos, líneas curvas'}
+];
+function cliCalcTotal(){
+  const tpl = window.AMOBLADOS_TPL[window.AMOBLADOS_CLI_CURRENT];
+  let subtotal = 0;
+  if(window.cliConfig.incluirAmoblado) subtotal += tpl.totales.amob || 0;
+  if(window.cliConfig.incluirAdicionales) subtotal += 453600;
+  if(window.cliConfig.incluirAire) subtotal += window.AIRE_COSTO;
+  const iva = window.cliConfig.conIva ? Math.round(subtotal * 0.19) : 0;
+  return {subtotal, iva, total: subtotal + iva};
+}
+function toggleCliOpt(opt){
+  if(opt === 'incluirAmoblado' || opt === 'incluirAdicionales' || opt === 'incluirAire' || opt === 'conIva'){
+    window.cliConfig[opt] = !window.cliConfig[opt];
+  }
+  renderAmobladosClientes(document.getElementById('mc'));
+}
+function setEstiloCli(estilo){
+  window.cliConfig.estilo = estilo;
+  renderAmobladosClientes(document.getElementById('mc'));
+}
+renderAmobladosClientes = function(c){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const totales = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  let html = `
+    <!-- Controles (NO se imprimen) -->
+    <div class="no-print" style="background:var(--surface2);border:2px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="N" style="font-size:13px;font-weight:900">🛋️ Selecciona la cotización</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="copiarCotizacionCliente()"><i class="ti ti-copy"></i>Copiar</button>
+          <button class="btn btn-sm btn-p" onclick="descargarCotizacion()"><i class="ti ti-download"></i>Descargar PDF</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">📐 Tipo de departamento</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        ${Object.entries(window.AMOBLADOS_TPL).map(([k,t])=>`
+          <button onclick="window.AMOBLADOS_CLI_CURRENT='${k}'; renderAmobladosClientes(document.getElementById('mc'))" style="padding:7px 12px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px">${t.emoji} ${t.label}</button>
+        `).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">✨ ¿Qué incluye?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAmoblado?'var(--green)':'var(--border2)'};background:${config.incluirAmoblado?'var(--green-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.incluirAmoblado?'checked':''} onchange="toggleCliOpt('incluirAmoblado')" style="accent-color:var(--green)"> 🛋️ Amoblado completo
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAdicionales?'var(--blue)':'var(--border2)'};background:${config.incluirAdicionales?'var(--blue-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.incluirAdicionales?'checked':''} onchange="toggleCliOpt('incluirAdicionales')" style="accent-color:var(--blue)"> ➕ Adicionales
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAire?'var(--sky)':'var(--border2)'};background:${config.incluirAire?'var(--sky-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.incluirAire?'checked':''} onchange="toggleCliOpt('incluirAire')" style="accent-color:var(--sky)"> ❄️ Aire acondicionado ($600.000)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.conIva?'var(--amber)':'var(--border2)'};background:${config.conIva?'var(--amber-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.conIva?'checked':''} onchange="toggleCliOpt('conIva')" style="accent-color:var(--amber)"> 🧾 Agregar IVA (19%)
+        </label>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">🎨 Estilo de diseño</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">
+        ${window.ESTILOS.map(e => `
+          <div onclick="setEstiloCli('${e.id}')" style="padding:10px 12px;border:2px solid ${config.estilo===e.id?'var(--purple)':'var(--border2)'};background:${config.estilo===e.id?'var(--purple-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;transition:all .13s">
+            <div style="font-size:12px;font-weight:900;color:${config.estilo===e.id?'var(--purple-d)':'var(--text)'};font-family:'Nunito',sans-serif">${e.label}</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">${e.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <!-- COTIZACIÓN (esta parte se imprime) -->
+    <div id="cotizacion-print">
+      <div style="background:linear-gradient(135deg,#5b21b6,#1e40af);color:#fff;padding:28px 32px;border-radius:var(--r);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-size:36px">${tpl.emoji}</span>
+          <div>
+            <div style="font-size:11px;opacity:.85;font-weight:700;text-transform:uppercase;letter-spacing:.12em">Cotización de amoblado</div>
+            <div class="N" style="font-size:24px;font-weight:900;letter-spacing:-.02em;margin-top:2px">${tpl.label}</div>
+            <div style="font-size:13px;opacity:.95;margin-top:6px">Estilo: <strong>${estiloSel.label.replace(/[^\w\s]/g,'').trim()}</strong> · Domus Rentals</div>
+          </div>
+        </div>
+      </div>
+  `;
+  // Mostrar items solo si incluye amoblado
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach(s => {
+      html += `
+        <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+          <div style="background:var(--purple-l);padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;color:var(--purple-d);border-bottom:2px solid var(--border)">${s.nombre}</div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr>
+              <th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th>
+              <th style="text-align:center;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:90px">Cantidad</th>
+            </tr></thead>
+            <tbody>
+              ${s.items.map(it=>`<tr>
+                <td style="padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+                <td style="padding:8px 16px;text-align:center;font-size:13px;font-weight:800;border-bottom:1px solid var(--border)">${it[1]}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    });
+  }
+  // Si incluye adicionales
+  if(config.incluirAdicionales){
+    html += `<div style="background:var(--surface);border:2px solid var(--blue);border-radius:var(--r);margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+      <div style="background:var(--blue-l);padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;color:var(--blue-d);border-bottom:2px solid var(--blue)">➕ ADICIONALES</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th>
+          <th style="text-align:center;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:90px">Cantidad</th>
+        </tr></thead>
+        <tbody>
+          ${window.AMOBLADOS_ADICIONALES.map(it=>`<tr>
+            <td style="padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+            <td style="padding:8px 16px;text-align:center;font-size:13px;font-weight:800;border-bottom:1px solid var(--border)">${it[1]}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  // Si incluye aire
+  if(config.incluirAire){
+    html += `<div style="background:var(--sky-l);border:2px solid var(--sky);border-radius:var(--r);margin-bottom:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;page-break-inside:avoid">
+      <span style="font-size:24px">❄️</span>
+      <div style="flex:1">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--sky-d)">Aire acondicionado</div>
+        <div style="font-size:11px;color:var(--text2)">Instalación incluida</div>
+      </div>
+    </div>`;
+  }
+  // RESUMEN DE TOTALES
+  html += `<div style="background:var(--surface);border:2px solid var(--purple);border-radius:var(--r);padding:18px 22px;margin-top:14px;page-break-inside:avoid">
+    <div class="N" style="font-size:13px;font-weight:900;color:var(--purple-d);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Resumen económico</div>
+    ${config.incluirAmoblado?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>🛋️ Amoblado de diseño</span><span style="font-weight:700">${formatCLP(tpl.totales.amob)}</span></div>`:''}
+    ${config.incluirAdicionales?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>➕ Adicionales</span><span style="font-weight:700">${formatCLP(453600)}</span></div>`:''}
+    ${config.incluirAire?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>❄️ Aire acondicionado</span><span style="font-weight:700">${formatCLP(window.AIRE_COSTO)}</span></div>`:''}
+    <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+    <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:800"><span>Subtotal</span><span>${formatCLP(totales.subtotal)}</span></div>
+    ${config.conIva?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:var(--text2)"><span>IVA (19%)</span><span style="font-weight:700">${formatCLP(totales.iva)}</span></div>`:''}
+    <div style="border-top:2px solid var(--purple);margin:10px 0 8px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+      <span class="N" style="font-size:16px;font-weight:900;color:var(--purple-d)">TOTAL</span>
+      <span class="N" style="font-size:26px;font-weight:900;color:var(--purple-d)">${formatCLP(totales.total)}</span>
+    </div>
+    ${!config.conIva?`<div style="font-size:10px;color:var(--text2);font-style:italic;text-align:right;margin-top:4px">Valor no incluye IVA 19%</div>`:''}
+  </div>
+  <div style="margin-top:20px;text-align:center;font-size:11px;color:var(--text2)">Domus Rentals · CRM Renta Corta · Cotización generada el ${new Date().toLocaleDateString('es-CL')}</div>
+  </div>`;
+  c.innerHTML = html;
+};
+function descargarCotizacion(){
+  // Agregar estilos de impresión y disparar print
+  const existingStyle = document.getElementById('print-style');
+  if(!existingStyle){
+    const printStyle = document.createElement('style');
+    printStyle.id = 'print-style';
+    printStyle.textContent = `
+      @media print {
+        body * { visibility:hidden !important; }
+        #cotizacion-print, #cotizacion-print * { visibility:visible !important; }
+        #cotizacion-print { position:absolute !important; left:0; top:0; width:100%; padding:20px; }
+        .no-print { display:none !important; }
+        .app, .sb, .topbar { display:none !important; }
+        @page { size:A4; margin:1.5cm; }
+      }
+    `;
+    document.head.appendChild(printStyle);
+  }
+  setTimeout(()=>{ window.print(); }, 200);
+}
+function copiarCotizacionCliente(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const totales = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  let texto = `*🛋️ DOMUS RENTALS*\n*Cotización ${tpl.label}*\n_Estilo: ${estiloSel.label.replace(/[^\w\s]/g,'').trim()}_\n\n`;
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach(s => {
+      texto += `*${s.nombre}*\n`;
+      s.items.forEach(it => { texto += `• ${it[0]} (${it[1]} un.)\n`; });
+      texto += `\n`;
+    });
+  }
+  if(config.incluirAdicionales){
+    texto += `*➕ ADICIONALES*\n`;
+    window.AMOBLADOS_ADICIONALES.forEach(it => { texto += `• ${it[0]} (${it[1]} un.)\n`; });
+    texto += `\n`;
+  }
+  if(config.incluirAire) texto += `*❄️ Aire acondicionado incluido*\n\n`;
+  texto += `*💰 RESUMEN:*\n`;
+  if(config.incluirAmoblado) texto += `• Amoblado: ${formatCLP(tpl.totales.amob)}\n`;
+  if(config.incluirAdicionales) texto += `• Adicionales: ${formatCLP(453600)}\n`;
+  if(config.incluirAire) texto += `• Aire acondicionado: ${formatCLP(window.AIRE_COSTO)}\n`;
+  texto += `• Subtotal: ${formatCLP(totales.subtotal)}\n`;
+  if(config.conIva) texto += `• IVA (19%): ${formatCLP(totales.iva)}\n`;
+  texto += `\n*🧾 TOTAL: ${formatCLP(totales.total)}*${config.conIva?' (con IVA)':''}\n`;
+  if(!config.conIva) texto += `\n_Valor no incluye IVA 19%_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(texto);
+  toast('📋 Cotización lista para enviar');
+}
 // Load from cloud on startup
 loadFromCloud();
 </script>
