@@ -3407,6 +3407,383 @@ function copiarCotizacionCliente(){
   if(navigator.clipboard) navigator.clipboard.writeText(texto);
   toast('📋 Cotización lista para enviar');
 }
+  // ═══════════════════════════════════════════════════════════
+// ═══ CAMBIOS V8: Resumen arriba + Calculadora + Documentos
+// ═══════════════════════════════════════════════════════════
+
+// 1) Modificar criteriosV4 (quitar 2 items)
+setTimeout(()=>{
+  if(window.criteriosV4){
+    window.criteriosV4 = window.criteriosV4.filter(c => c.id !== 'airbnb_perchas' && c.id !== 'airbnb_checkin');
+  }
+}, 500);
+
+// 2) Sidebar v8 (sin contador en Pipeline, con Calculadora, renombrar Documentos)
+function reorganizarSidebarV8(){
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial || navComercial.dataset.v8) return;
+  navComercial.dataset.v8 = 'true';
+  navComercial.innerHTML = `
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('propietarios')">
+        <span class="sb-section-arrow" id="arr-propietarios">▼</span>
+        <span>👥 Propietarios</span>
+      </div>
+      <div class="sb-section-items" id="sb-propietarios">
+        <div class="nav-i active" onclick="showView('pipeline',this)"><i class="ti ti-layout-kanban"></i>Pipeline</div>
+        <div class="nav-i" onclick="showView('clientes',this)"><i class="ti ti-users"></i>Clientes activos</div>
+        <div class="nav-i" onclick="showView('deptos',this)"><i class="ti ti-building"></i>Departamentos</div>
+        <div class="nav-i" onclick="showView('alianzas',this)"><i class="ti ti-handshake"></i>Alianzas</div>
+        <div class="nav-i" onclick="showView('resumen',this)"><i class="ti ti-chart-bar"></i>Resumen</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('amoblados')">
+        <span class="sb-section-arrow collapsed" id="arr-amoblados">▶</span>
+        <span>🛋️ Amoblados</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-amoblados">
+        <div class="nav-i" onclick="showView('amoblados-cotizador',this)"><i class="ti ti-calculator"></i>Cotizador (interno)</div>
+        <div class="nav-i" onclick="showView('amoblados-clientes',this)"><i class="ti ti-presentation"></i>Vista clientes</div>
+        <div class="nav-i" onclick="showView('amoblados-adicionales',this)"><i class="ti ti-plus"></i>Adicionales</div>
+        <div class="nav-i" onclick="showView('amoblados-calc',this)"><i class="ti ti-math-symbols"></i>Calculadora</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('documentos')">
+        <span class="sb-section-arrow collapsed" id="arr-documentos">▶</span>
+        <span>📄 Documentos</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-documentos">
+        <div class="nav-i" onclick="showView('documentos-vista',this)"><i class="ti ti-folder"></i>Carpetas</div>
+      </div>
+    </div>
+    <div class="sb-section">
+      <div class="sb-section-head" onclick="toggleSidebarSection('marketing')">
+        <span class="sb-section-arrow collapsed" id="arr-marketing">▶</span>
+        <span>📣 Marketing</span>
+      </div>
+      <div class="sb-section-items hidden" id="sb-marketing">
+        <div class="nav-i" onclick="showView('fotografia',this)"><i class="ti ti-camera"></i>Fotografía</div>
+      </div>
+    </div>
+    <div class="nav-s" style="margin-top:8px">Herramientas</div>
+    <div class="nav-i" onclick="showView('correos',this)"><i class="ti ti-mail"></i>Correos tipo</div>
+    <div class="nav-i" onclick="exportData()"><i class="ti ti-download"></i>Exportar datos</div>
+  `;
+}
+setTimeout(()=>{ reorganizarSidebarV8(); }, 4000);
+
+// 3) Interceptar showView para nuevas vistas
+const __origShowView_v8 = showView;
+showView = function(v, el){
+  if(v === 'amoblados-calc'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'amoblados-calc';
+    document.getElementById('vtitle').textContent = '🧮 Calculadora';
+    renderCalculadora(document.getElementById('mc'));
+    return;
+  }
+  if(v === 'documentos-vista'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'documentos-vista';
+    document.getElementById('vtitle').textContent = '📄 Documentos';
+    renderDocumentos(document.getElementById('mc'));
+    return;
+  }
+  __origShowView_v8(v, el);
+};
+
+// 4) Calculadora (iframe Google Sheets)
+function renderCalculadora(c){
+  c.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div style="font-size:11px;color:var(--text2);font-weight:700">Calculadora de amoblados (Google Sheets)</div>
+      <a href="https://docs.google.com/spreadsheets/d/1uYUCU1YDmEl2Su80IfvQlf9VWNaWlxvk/edit?gid=1101782683" target="_blank" class="btn btn-sm btn-p"><i class="ti ti-external-link"></i>Abrir en Google Sheets</a>
+    </div>
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden;height:calc(100vh - 220px);min-height:500px">
+      <iframe src="https://docs.google.com/spreadsheets/d/1uYUCU1YDmEl2Su80IfvQlf9VWNaWlxvk/preview?gid=1101782683&widget=true&headers=false&chrome=false" width="100%" height="100%" style="border:none;display:block" allowfullscreen></iframe>
+    </div>
+    <div style="font-size:10px;color:var(--text3);font-style:italic;margin-top:8px">Si la calculadora no carga: asegúrate de que el Google Sheet esté compartido como "Cualquier persona con el enlace puede ver"</div>
+  `;
+}
+
+// 5) Vista Documentos (3 carpetas por propiedad)
+function renderDocumentos(c){
+  const propiedades = leads.filter(l => l.address).sort((a,b) => b.id - a.id);
+  let html = `<div style="font-size:11px;color:var(--text2);margin-bottom:14px">${propiedades.length} propiedades · 3 carpetas por propiedad</div>
+    <div style="display:flex;flex-direction:column;gap:5px">`;
+  propiedades.forEach(l => {
+    const docsAdm = (l.docs_contrato_admin||[]).length;
+    const docsAmob = (l.docs_contrato_amob||[]).length;
+    const docsPagos = (l.docs_pagos||[]).length;
+    const total = docsAdm + docsAmob + docsPagos;
+    html += `
+    <div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ${total>0?'var(--green)':'var(--text3)'};border-radius:var(--rsm);overflow:hidden">
+      <div onclick="toggleDocsProp(${l.id})" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer">
+        <div style="flex:1;min-width:0">
+          <div class="N" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+          <div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.address}</div>
+        </div>
+        <span style="font-size:10px;font-weight:800;background:var(--purple-l);color:var(--purple-d);padding:3px 8px;border-radius:20px">📑 ${total} archivos</span>
+        <i class="ti ti-chevron-down" id="docs-arrow-${l.id}" style="font-size:16px;color:var(--text3)"></i>
+      </div>
+      <div id="docs-content-${l.id}" style="display:none;padding:0 14px 14px;background:var(--surface2);border-top:1px solid var(--border)">
+        ${renderDocBlock(l, 'docs_contrato_admin', '📄 Contrato de administración', 'var(--blue)')}
+        ${renderDocBlock(l, 'docs_contrato_amob', '🛋️ Contrato de amoblado', 'var(--purple)')}
+        ${renderDocBlock(l, 'docs_pagos', '💵 Comprobantes de pago', 'var(--green)')}
+      </div>
+    </div>`;
+  });
+  html += `</div>`;
+  c.innerHTML = html;
+}
+function toggleDocsProp(id){
+  const content = document.getElementById('docs-content-'+id);
+  const arrow = document.getElementById('docs-arrow-'+id);
+  if(!content) return;
+  const isOpen = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  if(arrow) arrow.className = isOpen ? 'ti ti-chevron-down' : 'ti ti-chevron-up';
+}
+function renderDocBlock(l, field, titulo, color){
+  const docs = l[field] || [];
+  return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="N" style="font-size:11px;font-weight:900;color:${color}">${titulo} <span style="color:var(--text2);font-weight:700">· ${docs.length}</span></div>
+      <label class="btn btn-sm" style="cursor:pointer">
+        <i class="ti ti-upload"></i>Subir archivo
+        <input type="file" accept=".pdf,image/*" multiple style="display:none" onchange="addDocsTo(${l.id},'${field}',this)">
+      </label>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      ${docs.map((d,i)=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:11px">
+          <i class="ti ti-file-text" style="font-size:16px;color:${color}"></i>
+          <a href="${d.data}" target="_blank" download="${d.name}" style="flex:1;color:var(--text);font-weight:700;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.name}</a>
+          <span style="font-size:9px;color:var(--text3);font-weight:700">${d.fecha||''}</span>
+          <button onclick="deleteDocFrom(${l.id},'${field}',${i})" style="font-size:14px;background:none;border:none;color:var(--red);cursor:pointer;padding:2px 6px">🗑️</button>
+        </div>
+      `).join('') || '<div style="font-size:10px;color:var(--text3);font-style:italic;padding:6px 0;text-align:center">Sin archivos en esta carpeta</div>'}
+    </div>
+  </div>`;
+}
+function addDocsTo(id, field, input){
+  const l = leads.find(x => x.id === id);
+  if(!l || !input.files.length) return;
+  l[field] = l[field] || [];
+  let done = 0;
+  Array.from(input.files).forEach(file => {
+    if(file.size > 8*1024*1024){ toast('⚠️ '+file.name+' supera 8MB'); done++; return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      l[field].push({name:file.name, data:e.target.result, fecha:new Date().toLocaleDateString('es-CL')});
+      done++;
+      if(done === input.files.length){
+        saveData();
+        renderDocumentos(document.getElementById('mc'));
+        toggleDocsProp(id); toggleDocsProp(id);
+        toast('📄 Archivos subidos');
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function deleteDocFrom(id, field, idx){
+  if(!confirm('¿Borrar este archivo?')) return;
+  const l = leads.find(x => x.id === id);
+  if(!l || !l[field]) return;
+  l[field].splice(idx, 1);
+  saveData();
+  renderDocumentos(document.getElementById('mc'));
+}
+
+// 6) Vista clientes — RESUMEN ARRIBA + sin tab Docs y Fotos
+renderAmobladosClientes = function(c){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const totales = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  let html = `
+    <!-- Controles -->
+    <div class="no-print" style="background:var(--surface2);border:2px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="N" style="font-size:13px;font-weight:900">🛋️ Selecciona la cotización</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="copiarCotizacionCliente()"><i class="ti ti-copy"></i>Copiar</button>
+          <button class="btn btn-sm btn-p" onclick="descargarCotizacion()"><i class="ti ti-download"></i>Descargar PDF</button>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">📐 Tipo</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        ${Object.entries(window.AMOBLADOS_TPL).map(([k,t])=>`
+          <button onclick="window.AMOBLADOS_CLI_CURRENT='${k}'; renderAmobladosClientes(document.getElementById('mc'))" style="padding:7px 12px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px">${t.emoji} ${t.label}</button>
+        `).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">✨ ¿Qué incluye?</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAmoblado?'var(--green)':'var(--border2)'};background:${config.incluirAmoblado?'var(--green-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.incluirAmoblado?'checked':''} onchange="toggleCliOpt('incluirAmoblado')" style="accent-color:var(--green)"> 🛋️ Amoblado completo
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAdicionales?'var(--blue)':'var(--border2)'};background:${config.incluirAdicionales?'var(--blue-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.incluirAdicionales?'checked':''} onchange="toggleCliOpt('incluirAdicionales')" style="accent-color:var(--blue)"> ➕ Adicionales
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAire?'var(--sky)':'var(--border2)'};background:${config.incluirAire?'var(--sky-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.incluirAire?'checked':''} onchange="toggleCliOpt('incluirAire')" style="accent-color:var(--sky)"> ❄️ Aire ($600.000)
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.conIva?'var(--amber)':'var(--border2)'};background:${config.conIva?'var(--amber-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+          <input type="checkbox" ${config.conIva?'checked':''} onchange="toggleCliOpt('conIva')" style="accent-color:var(--amber)"> 🧾 IVA 19%
+        </label>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">🎨 Estilo</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px">
+        ${window.ESTILOS.map(e => `
+          <div onclick="setEstiloCli('${e.id}')" style="padding:10px 12px;border:2px solid ${config.estilo===e.id?'var(--purple)':'var(--border2)'};background:${config.estilo===e.id?'var(--purple-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer">
+            <div style="font-size:12px;font-weight:900;color:${config.estilo===e.id?'var(--purple-d)':'var(--text)'};font-family:'Nunito',sans-serif">${e.label}</div>
+            <div style="font-size:9px;color:var(--text2);margin-top:2px">${e.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <!-- COTIZACIÓN -->
+    <div id="cotizacion-print">
+      <!-- Header bonito -->
+      <div style="background:linear-gradient(135deg,#5b21b6,#1e40af);color:#fff;padding:28px 32px;border-radius:var(--r);margin-bottom:14px">
+        <div style="display:flex;align-items:center;gap:14px">
+          <span style="font-size:36px">${tpl.emoji}</span>
+          <div>
+            <div style="font-size:11px;opacity:.85;font-weight:700;text-transform:uppercase;letter-spacing:.12em">Cotización de amoblado</div>
+            <div class="N" style="font-size:24px;font-weight:900;letter-spacing:-.02em;margin-top:2px">${tpl.label}</div>
+            <div style="font-size:13px;opacity:.95;margin-top:6px">Estilo: <strong>${estiloSel.label.replace(/[^\w\s]/g,'').trim()}</strong> · Domus Rentals</div>
+          </div>
+        </div>
+      </div>
+      <!-- RESUMEN ARRIBA -->
+      <div style="background:var(--surface);border:2px solid var(--purple);border-radius:var(--r);padding:18px 22px;margin-bottom:14px;page-break-inside:avoid">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--purple-d);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">💰 Resumen económico</div>
+        ${config.incluirAmoblado?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>🛋️ Amoblado de diseño</span><span style="font-weight:700">${formatCLP(tpl.totales.amob)}</span></div>`:''}
+        ${config.incluirAdicionales?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>➕ Adicionales</span><span style="font-weight:700">${formatCLP(453600)}</span></div>`:''}
+        ${config.incluirAire?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px"><span>❄️ Aire acondicionado</span><span style="font-weight:700">${formatCLP(window.AIRE_COSTO)}</span></div>`:''}
+        <div style="border-top:1px solid var(--border);margin:8px 0"></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:800"><span>Subtotal</span><span>${formatCLP(totales.subtotal)}</span></div>
+        ${config.conIva?`<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:12px;color:var(--text2)"><span>IVA (19%)</span><span style="font-weight:700">${formatCLP(totales.iva)}</span></div>`:''}
+        <div style="border-top:2px solid var(--purple);margin:10px 0 8px"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+          <span class="N" style="font-size:16px;font-weight:900;color:var(--purple-d)">TOTAL</span>
+          <span class="N" style="font-size:30px;font-weight:900;color:var(--purple-d)">${formatCLP(totales.total)}</span>
+        </div>
+        ${!config.conIva?`<div style="font-size:10px;color:var(--text2);font-style:italic;text-align:right;margin-top:4px">Valor no incluye IVA 19%</div>`:''}
+      </div>
+  `;
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach(s => {
+      html += `<div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+        <div style="background:var(--purple-l);padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;color:var(--purple-d);border-bottom:2px solid var(--border)">${s.nombre}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <thead><tr>
+            <th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th>
+            <th style="text-align:center;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:90px">Cantidad</th>
+          </tr></thead>
+          <tbody>
+            ${s.items.map(it=>`<tr>
+              <td style="padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+              <td style="padding:8px 16px;text-align:center;font-size:13px;font-weight:800;border-bottom:1px solid var(--border)">${it[1]}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    });
+  }
+  if(config.incluirAdicionales){
+    html += `<div style="background:var(--surface);border:2px solid var(--blue);border-radius:var(--r);margin-bottom:10px;overflow:hidden;page-break-inside:avoid">
+      <div style="background:var(--blue-l);padding:9px 16px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;color:var(--blue-d);border-bottom:2px solid var(--blue)">➕ ADICIONALES</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Detalle</th>
+          <th style="text-align:center;padding:8px 16px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:90px">Cantidad</th>
+        </tr></thead>
+        <tbody>
+          ${window.AMOBLADOS_ADICIONALES.map(it=>`<tr>
+            <td style="padding:8px 16px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+            <td style="padding:8px 16px;text-align:center;font-size:13px;font-weight:800;border-bottom:1px solid var(--border)">${it[1]}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+  if(config.incluirAire){
+    html += `<div style="background:var(--sky-l);border:2px solid var(--sky);border-radius:var(--r);margin-bottom:10px;padding:12px 16px;display:flex;align-items:center;gap:12px;page-break-inside:avoid">
+      <span style="font-size:24px">❄️</span>
+      <div style="flex:1">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--sky-d)">Aire acondicionado</div>
+        <div style="font-size:11px;color:var(--text2)">Instalación incluida</div>
+      </div>
+    </div>`;
+  }
+  html += `<div style="margin-top:20px;text-align:center;font-size:11px;color:var(--text2)">Domus Rentals · Cotización generada el ${new Date().toLocaleDateString('es-CL')}</div></div>`;
+  c.innerHTML = html;
+};
+
+// 7) Modal: quitar tabs Docs y Fotos + uploads en pasos amob + voucher
+const __origRenderModal_v8 = renderModal;
+renderModal = function(){
+  __origRenderModal_v8();
+  setTimeout(()=>{
+    // Ocultar tabs Docs y Fotos
+    const tabsContainer = document.querySelector('.tabs');
+    if(tabsContainer){
+      Array.from(tabsContainer.children).forEach(t => {
+        const txt = t.textContent.trim();
+        if(txt.includes('Docs') || txt.includes('Fotos')){
+          t.style.display = 'none';
+        }
+      });
+    }
+    // Ocultar contenido de docs/fotos
+    const tdocs = document.getElementById('tdocs');
+    if(tdocs) tdocs.style.display = 'none';
+    const tfotos = document.getElementById('tfotos');
+    if(tfotos) tfotos.style.display = 'none';
+    
+    // Ocultar uploads específicos en flow steps
+    const flowSteps = document.querySelectorAll('#tflow .flow-step');
+    flowSteps.forEach(step => {
+      const label = step.querySelector('.fs-label');
+      if(!label) return;
+      const txt = label.textContent;
+      // Voucher de pago: ocultar el paso entero
+      if(txt.includes('Voucher de pago')){
+        step.style.display = 'none';
+        return;
+      }
+      // Contrato amoblado firmado/enviado: ocultar uploads
+      if(txt.includes('Contrato de amoblado firmado') || txt.includes('Contrato de amoblado enviado')){
+        const voucherZones = step.querySelectorAll('.voucher-zone');
+        voucherZones.forEach(vz => { if(vz.parentNode) vz.parentNode.style.display = 'none'; });
+        const fileBoxes = step.querySelectorAll('.contrato-file');
+        fileBoxes.forEach(fb => fb.style.display = 'none');
+      }
+      // El paso "Pago de amoblado recibido" tenía un voucher-zone (index 13 era voucher)
+      // Pero el paso 13 era el voucher en sí, ya lo ocultamos arriba
+      // El paso 12 "Pago de amoblado recibido" no debería tener upload
+    });
+    
+    // Ocultar también el voucher-zone del flow del index 13
+    const voucherZonesAll = document.querySelectorAll('#tflow .voucher-zone');
+    voucherZonesAll.forEach(vz => {
+      // Si el voucher-zone es para voucher (amber background)
+      const style = vz.getAttribute('style') || '';
+      // Identificar por texto
+      const txt = vz.textContent || '';
+      if(txt.toLowerCase().includes('voucher')){
+        if(vz.parentNode) vz.parentNode.style.display = 'none';
+      }
+    });
+  }, 350);
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
