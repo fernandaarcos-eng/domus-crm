@@ -5279,6 +5279,45 @@ renderFotografia = function(c){
     else c.appendChild(btn);
   }, 200);
 };
+  // ═══ V17: Actualizar precios amoblados ═══
+setTimeout(function(){
+  if(window.AMOBLADOS_TPL){
+    if(window.AMOBLADOS_TPL.studio){
+      window.AMOBLADOS_TPL.studio.totales.amob = 3446250;
+      window.AMOBLADOS_TPL.studio.totales.amobDscto = 2871875;
+    }
+    if(window.AMOBLADOS_TPL.h1b1){
+      window.AMOBLADOS_TPL.h1b1.totales.amob = 4795362;
+      window.AMOBLADOS_TPL.h1b1.totales.amobDscto = 3996135;
+    }
+    if(window.AMOBLADOS_TPL.h2b1){
+      window.AMOBLADOS_TPL.h2b1.totales.amob = 6124107;
+      window.AMOBLADOS_TPL.h2b1.totales.amobDscto = 5103423;
+    }
+    if(window.AMOBLADOS_TPL.h2b2){
+      window.AMOBLADOS_TPL.h2b2.totales.amob = 6267450;
+      window.AMOBLADOS_TPL.h2b2.totales.amobDscto = 5222875;
+    }
+  }
+  // También actualizar precios default de la Calculadora
+  if(window.CALC_DEFAULTS){
+    window.CALC_DEFAULTS.studio_amob = 2871875;
+    window.CALC_DEFAULTS.h1b1_amob = 3996135;
+    window.CALC_DEFAULTS.h2b1_amob = 5103423;
+    window.CALC_DEFAULTS.h2b2_amob = 5222875;
+  }
+  // Si el usuario está en una vista de amoblados, re-render
+  if(typeof renderView === 'function') renderView();
+}, 1500);
+
+// Asegurar que getAmobPrice usa precio con descuento siempre
+window.getAmobPriceFull = function(tpl){
+  return (tpl && tpl.totales && tpl.totales.amob) || 0;
+};
+window.getAmobPriceDscto = function(tpl){
+  return (tpl && tpl.totales && (tpl.totales.amobDscto || tpl.totales.amob)) || 0;
+};
+window.getAmobPrice = window.getAmobPriceDscto;
 // Load from cloud on startup
 loadFromCloud();
 </script>
