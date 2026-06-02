@@ -5062,6 +5062,223 @@ renderAmobladosClientes = function(c){
   html += `<div style="margin-top:30px;padding:14px;text-align:center;font-size:11px;color:var(--text2);border-top:2px solid var(--border)"><strong style="color:var(--purple-d)">Domus Rentals</strong> · CRM Renta Corta<br>Cotización generada el ${new Date().toLocaleDateString('es-CL')}</div></div>`;
   c.innerHTML = html;
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ V16: Alertas + Búsqueda global + Filtros + Excel + Lazy ═
+// ═══════════════════════════════════════════════════════════
+
+// 1) ALERTAS VISUALES — detectar leads con datos faltantes
+window.STAGES_ORDER = ['prospecto','reunion_agendada','reunion_cursada','resultado_reunion','correo_datos','contrato_enviado','contrato_firmado','amob_contrato_firmado','amob_contrato_enviado','amob_proceso','amob_pagado','foto_tomada','foto_editada','foto_publicada','cliente_activo'];
+window.problemasLead = function(l){
+  const probs = [];
+  const idx = window.STAGES_ORDER.indexOf(l.stage);
+  const sinAddr = !l.address || l.address.trim() === '' || l.address === '—';
+  const sinTipo = !l.tipo_contrato;
+  if(sinAddr && idx >= 4) probs.push('Sin dirección');
+  if(sinTipo && idx >= 3) probs.push('Sin tipo contrato');
+  if(!l.phone && !l.email) probs.push('Sin contacto');
+  return probs;
+};
+function aplicarAlertasPipeline(){
+  document.querySelectorAll('[onclick*="openLead("]').forEach(card => {
+    const m = card.getAttribute('onclick').match(/openLead\((\d+)\)/);
+    if(!m) return;
+    const id = parseInt(m[1]);
+    const l = leads.find(x => x.id === id);
+    if(!l) return;
+    const probs = window.problemasLead(l);
+    if(probs.length === 0) return;
+    // Si ya tiene el badge, no duplicar
+    if(card.querySelector('.warn-badge')) return;
+    const badge = document.createElement('span');
+    badge.className = 'warn-badge';
+    badge.title = probs.join(', ');
+    badge.style.cssText = 'background:var(--red-l);color:var(--red-d);font-size:10px;font-weight:900;padding:2px 7px;border-radius:20px;flex-shrink:0;font-family:Nunito,sans-serif;display:inline-flex;align-items:center;gap:3px';
+    badge.innerHTML = '⚠️ ' + probs.length;
+    card.appendChild(badge);
+  });
+}
+// Re-render del pipeline aplica alertas
+const __origRenderView_v16 = renderView;
+renderView = function(){
+  __origRenderView_v16();
+  setTimeout(aplicarAlertasPipeline, 200);
+};
+
+// 2) BÚSQUEDA GLOBAL — el input "Buscar..." busca en todos los leads
+function buscarGlobal(query){
+  if(!query || query.length < 2){
+    document.getElementById('search-results-pop')?.remove();
+    return;
+  }
+  const q = query.toLowerCase();
+  const matches = leads.filter(l =>
+    (l.name||'').toLowerCase().includes(q) ||
+    (l.address||'').toLowerCase().includes(q) ||
+    (l.comuna||'').toLowerCase().includes(q) ||
+    (l.email||'').toLowerCase().includes(q) ||
+    (l.phone||'').includes(q)
+  ).slice(0, 15);
+  let pop = document.getElementById('search-results-pop');
+  if(!pop){
+    pop = document.createElement('div');
+    pop.id = 'search-results-pop';
+    pop.style.cssText = 'position:fixed;top:62px;right:140px;width:340px;background:var(--surface);border:2px solid var(--purple);border-radius:var(--rsm);box-shadow:0 12px 40px rgba(0,0,0,.15);z-index:200;max-height:60vh;overflow-y:auto';
+    document.body.appendChild(pop);
+  }
+  if(matches.length === 0){
+    pop.innerHTML = '<div style="padding:14px;font-size:12px;color:var(--text2);font-style:italic;text-align:center">Sin resultados</div>';
+    return;
+  }
+  pop.innerHTML = `
+    <div style="padding:8px 12px;font-size:10px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;background:var(--bg);border-bottom:1px solid var(--border)">${matches.length} resultado${matches.length!==1?'s':''} ${matches.length<leads.length?'(de '+leads.length+')':''}</div>
+    ${matches.map(l => {
+      const probs = window.problemasLead(l);
+      const stLabel = stageInfo(l.stage).label;
+      return `<div onclick="document.getElementById('search-results-pop')?.remove();document.getElementById('srch').value='';openLead(${l.id})" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--border)" onmouseover="this.style.background='var(--bg)'" onmouseout="this.style.background='transparent'">
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;min-width:0">
+            <div class="N" style="font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}</div>
+            <div style="font-size:10px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.address || '—'} ${l.comuna ? '· '+l.comuna : ''}</div>
+          </div>
+          ${probs.length ? `<span style="background:var(--red-l);color:var(--red-d);font-size:9px;font-weight:900;padding:1px 6px;border-radius:20px;font-family:Nunito,sans-serif">⚠️</span>` : ''}
+          <span style="background:var(--purple-l);color:var(--purple-d);font-size:9px;font-weight:800;padding:2px 7px;border-radius:20px;flex-shrink:0">${stLabel}</span>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+// Conectar el input de búsqueda
+setTimeout(function(){
+  const srch = document.getElementById('srch');
+  if(srch){
+    srch.removeAttribute('oninput');
+    srch.placeholder = 'Buscar cliente, dirección, email...';
+    srch.addEventListener('input', function(){
+      const q = this.value;
+      buscarGlobal(q);
+      // Sigue funcionando el filtrado de la vista actual también
+      if(typeof renderView === 'function') renderView();
+    });
+    // Cerrar resultados al hacer click fuera
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('#search-results-pop') && !e.target.closest('#srch')){
+        document.getElementById('search-results-pop')?.remove();
+      }
+    });
+  }
+}, 1500);
+
+// 3) FILTROS ADICIONALES en Pipeline
+window.pipelineFilters = window.pipelineFilters || {origen:'', tipoContrato:'', etapa:''};
+function setPipelineFilter(campo, valor){
+  window.pipelineFilters[campo] = valor;
+  renderView();
+}
+const __origFilteredLeads_v16 = filteredLeads;
+filteredLeads = function(){
+  let res = __origFilteredLeads_v16();
+  const f = window.pipelineFilters;
+  if(f.origen) res = res.filter(l => l.origen === f.origen);
+  if(f.tipoContrato) res = res.filter(l => l.tipo_contrato === f.tipoContrato);
+  if(f.etapa) res = res.filter(l => l.stage === f.etapa);
+  return res;
+};
+function renderFiltrosPipeline(){
+  if(currentView !== 'pipeline') return '';
+  const origenes = [...new Set(leads.map(l => l.origen).filter(Boolean))].sort();
+  const f = window.pipelineFilters;
+  return `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;padding:10px 14px;background:var(--surface);border:2px solid var(--border);border-radius:var(--r)">
+    <span style="font-size:10px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">🔍 Filtros:</span>
+    <select onchange="setPipelineFilter('etapa',this.value)" style="padding:5px 10px;font-size:11px;border:1px solid var(--border2);border-radius:var(--rsm);background:var(--surface2);font-family:inherit;font-weight:700">
+      <option value="">Todas las etapas</option>
+      ${allStages().map(s => `<option value="${s.id}"${f.etapa===s.id?' selected':''}>${s.emoji} ${s.label}</option>`).join('')}
+    </select>
+    <select onchange="setPipelineFilter('origen',this.value)" style="padding:5px 10px;font-size:11px;border:1px solid var(--border2);border-radius:var(--rsm);background:var(--surface2);font-family:inherit;font-weight:700">
+      <option value="">Todos los orígenes</option>
+      ${origenes.map(o => `<option value="${o}"${f.origen===o?' selected':''}>${o}</option>`).join('')}
+    </select>
+    <select onchange="setPipelineFilter('tipoContrato',this.value)" style="padding:5px 10px;font-size:11px;border:1px solid var(--border2);border-radius:var(--rsm);background:var(--surface2);font-family:inherit;font-weight:700">
+      <option value="">Todos los contratos</option>
+      <option value="admin"${f.tipoContrato==='admin'?' selected':''}>🏠 Solo Adm.</option>
+      <option value="admin_amob"${f.tipoContrato==='admin_amob'?' selected':''}>🛋️ Adm.+Amob.</option>
+    </select>
+    ${(f.origen||f.tipoContrato||f.etapa)?`<button onclick="window.pipelineFilters={origen:'',tipoContrato:'',etapa:''};renderView()" class="btn btn-sm" style="padding:5px 10px;font-size:10px">✕ Limpiar</button>`:''}
+  </div>`;
+}
+// Inyectar filtros al pipeline
+const __origRenderPipeline_v16 = renderPipeline;
+renderPipeline = function(c){
+  __origRenderPipeline_v16(c);
+  const filtros = renderFiltrosPipeline();
+  if(filtros){
+    // Insertar después de las carpetas por mes
+    const carpetas = c.querySelector('[onclick*="setCurrentMes"]')?.closest('div[style*="border-radius:var(--r)"]');
+    if(carpetas) carpetas.insertAdjacentHTML('afterend', filtros);
+    else c.innerHTML = filtros + c.innerHTML;
+  }
+};
+
+// 4) EXPORTAR A EXCEL (CSV con BOM UTF-8)
+function exportExcel(){
+  const headers = ['ID','Nombre','Teléfono','Email','Dirección','Comuna','Etapa','Tipo contrato','Origen','Mes asignado','% Avance','Notas'];
+  const rows = leads.map(l => [
+    l.id,
+    l.name || '',
+    l.phone || '',
+    l.email || '',
+    l.address || '',
+    l.comuna || '',
+    stageInfo(l.stage).label,
+    l.tipo_contrato === 'admin_amob' ? 'Adm+Amob' : (l.tipo_contrato === 'admin' ? 'Adm' : ''),
+    l.origen || '',
+    l.mes_asignado || '',
+    pct(l) + '%',
+    (l.notes || '').replace(/\r?\n/g, ' / ')
+  ]);
+  let csv = headers.map(h => '"' + h + '"').join(';') + '\n';
+  rows.forEach(r => csv += r.map(c => '"' + String(c).replace(/"/g,'""') + '"').join(';') + '\n');
+  const blob = new Blob(['﻿' + csv], {type: 'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'domus_crm_' + new Date().toISOString().split('T')[0] + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('📊 Excel descargado (' + leads.length + ' clientes)');
+}
+// Reemplazar el onclick del botón "Exportar datos"
+setTimeout(function(){
+  document.querySelectorAll('[onclick="exportData()"]').forEach(b => {
+    b.setAttribute('onclick', 'exportExcel()');
+    if(b.innerHTML.includes('Exportar')) b.innerHTML = '<i class="ti ti-table-export"></i>Exportar a Excel';
+  });
+}, 3000);
+
+// 5) FOTOGRAFÍA con LAZY LOAD
+window.FOTO_LIMIT = 20;
+const __origRenderFotografia_v16 = renderFotografia;
+renderFotografia = function(c){
+  // Llamar al render normal
+  __origRenderFotografia_v16(c);
+  // Después: ocultar elementos a partir del límite y agregar botón "Ver más"
+  setTimeout(function(){
+    const wrappers = c.querySelectorAll('[style*="border-left:4px solid"]');
+    if(wrappers.length <= window.FOTO_LIMIT) return;
+    wrappers.forEach((w, i) => {
+      if(i >= window.FOTO_LIMIT) w.style.display = 'none';
+    });
+    // Verificar si ya hay botón
+    if(c.querySelector('.foto-loadmore')) return;
+    const btn = document.createElement('div');
+    btn.className = 'foto-loadmore';
+    btn.style.cssText = 'text-align:center;padding:14px;margin-top:10px';
+    btn.innerHTML = `<button class="btn btn-p" onclick="window.FOTO_LIMIT+=20;renderFotografia(document.getElementById('mc'))" style="padding:11px 24px"><i class="ti ti-chevron-down"></i>Ver ${Math.min(20, wrappers.length - window.FOTO_LIMIT)} más (de ${wrappers.length - window.FOTO_LIMIT} pendientes)</button>`;
+    const lastVisible = c.querySelector('[style*="border-left:4px solid"]:last-of-type');
+    if(lastVisible) lastVisible.parentNode.appendChild(btn);
+    else c.appendChild(btn);
+  }, 200);
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
