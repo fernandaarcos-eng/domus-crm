@@ -6098,6 +6098,29 @@ setTimeout(function(){
     if(typeof renderView === 'function') renderView();
   }
 }, 1200);
+  // ═══ V25: Ocultar monto de items removidos en cotización ═══
+(function(){
+  const __origRender_v25 = renderAmobladosClientes;
+  renderAmobladosClientes = function(c){
+    __origRender_v25(c);
+    setTimeout(function(){
+      try {
+        // Buscar contenedores con el estilo de items removidos (color marrón #a16207)
+        const containers = c.querySelectorAll('[style*="#a16207"]');
+        containers.forEach(function(cont){
+          // Buscar dentro el div que tiene el monto (flex space-between)
+          const flexDivs = cont.querySelectorAll('div[style*="justify-content:space-between"]');
+          flexDivs.forEach(function(div){
+            const span = div.querySelector('span:last-child');
+            if(span && /−\$/.test(span.textContent)) {
+              div.style.display = 'none';
+            }
+          });
+        });
+      } catch(e){}
+    }, 80);
+  };
+})();
 // Load from cloud on startup
 loadFromCloud();
 </script>
