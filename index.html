@@ -5318,6 +5318,133 @@ window.getAmobPriceDscto = function(tpl){
   return (tpl && tpl.totales && (tpl.totales.amobDscto || tpl.totales.amob)) || 0;
 };
 window.getAmobPrice = window.getAmobPriceDscto;
+  // ═══════════════════════════════════════════════════════════
+// ═══ V19: Propietarios agrupados ═══════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// Agregar item "Por propietario" en sidebar Propietarios
+function inyectarPropietariosAgrupados(){
+  const sbProps = document.getElementById('sb-propietarios');
+  if(!sbProps) return false;
+  if(document.getElementById('nav-prop-agrupados')) return true;
+  // Insertar después del item "Clientes activos"
+  const items = sbProps.querySelectorAll('.nav-i');
+  let after = null;
+  items.forEach(i => { if(i.textContent.includes('Clientes activos')) after = i; });
+  const nuevo = document.createElement('div');
+  nuevo.className = 'nav-i';
+  nuevo.id = 'nav-prop-agrupados';
+  nuevo.setAttribute('onclick', "showView('propietarios-agrupados',this)");
+  nuevo.innerHTML = '<i class="ti ti-users-group"></i>Por propietario';
+  if(after) after.parentNode.insertBefore(nuevo, after.nextSibling);
+  else sbProps.appendChild(nuevo);
+  return true;
+}
+function intentarInyectar(reintentos){
+  reintentos = reintentos || 0;
+  if(inyectarPropietariosAgrupados()) return;
+  if(reintentos < 20) setTimeout(()=>intentarInyectar(reintentos+1), 500);
+}
+setTimeout(intentarInyectar, 800);
+
+// Identificar propietarios únicos
+function getPropietariosUnicos(){
+  const map = {};
+  leads.forEach(l => {
+    const email = (l.email || '').toLowerCase().trim();
+    const name = (l.name || '').toLowerCase().trim();
+    const key = email || name || 'sin-nombre-' + l.id;
+    if(!map[key]){
+      map[key] = {
+        key: key,
+        safeKey: key.replace(/[^a-z0-9]/gi, ''),
+        name: l.name || 'Sin nombre',
+        email: l.email || '',
+        phone: l.phone || '',
+        origen: l.origen || '',
+        tipo_contrato: l.tipo_contrato || '',
+        deptos: []
+      };
+    }
+    map[key].deptos.push(l);
+    if(!map[key].email && l.email) map[key].email = l.email;
+    if(!map[key].phone && l.phone) map[key].phone = l.phone;
+    if(!map[key].origen && l.origen) map[key].origen = l.origen;
+  });
+  return Object.values(map).sort((a,b) => b.deptos.length - a.deptos.length);
+}
+
+// Interceptar showView para agregar la vista
+const __origShowView_v19 = showView;
+showView = function(v, el){
+  if(v === 'propietarios-agrupados'){
+    document.querySelectorAll('.nav-i').forEach(n=>n.classList.remove('active'));
+    if(el) el.classList.add('active');
+    currentView = 'propietarios-agrupados';
+    document.getElementById('vtitle').textContent = '👥 Propietarios agrupados';
+    renderPropietariosAgrupados(document.getElementById('mc'));
+    return;
+  }
+  __origShowView_v19(v, el);
+};
+
+function renderPropietariosAgrupados(c){
+  const props = getPropietariosUnicos();
+  const conMultiples = props.filter(p => p.deptos.length > 1);
+  const conUno = props.filter(p => p.deptos.length === 1);
+  const totalDeptos = leads.length;
+  let html = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+      <div class="sc"><div class="sc-icon">👥</div><div class="sc-val" style="color:var(--purple)">${props.length}</div><div class="sc-lbl">Propietarios únicos</div></div>
+      <div class="sc"><div class="sc-icon">🏢</div><div class="sc-val" style="color:var(--blue)">${conMultiples.length}</div><div class="sc-lbl">Con varios deptos</div></div>
+      <div class="sc"><div class="sc-icon">🏠</div><div class="sc-val" style="color:var(--green)">${conUno.length}</div><div class="sc-lbl">Con un depto</div></div>
+      <div class="sc"><div class="sc-icon">📦</div><div class="sc-val" style="color:var(--text)">${totalDeptos}</div><div class="sc-lbl">Total deptos</div></div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px">📌 Click en un propietario para ver sus departamentos. Click en un depto para abrirlo.</div>
+    <div style="display:flex;flex-direction:column;gap:5px">
+      ${props.map(p => {
+        const multi = p.deptos.length > 1;
+        return `<div style="background:var(--surface);border:2px solid var(--border);${multi?'border-left:4px solid var(--purple);':''}border-radius:var(--rsm);overflow:hidden">
+          <div onclick="togglePropietario('${p.safeKey}')" style="display:flex;align-items:center;gap:10px;padding:10px 14px;cursor:pointer">
+            <div style="flex:1;min-width:0">
+              <div class="N" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+              <div style="font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                ${p.email ? '📧 ' + p.email : ''}${p.email && p.phone ? ' · ' : ''}${p.phone ? '📞 ' + p.phone : ''}${(!p.email && !p.phone) ? '<span style="font-style:italic;color:var(--text3)">Sin contacto</span>' : ''}
+              </div>
+            </div>
+            ${p.origen ? `<span style="font-size:9px;font-weight:700;background:var(--bg);color:var(--text2);padding:2px 7px;border-radius:20px;flex-shrink:0">${p.origen}</span>` : ''}
+            <span style="font-size:10px;font-weight:800;background:${multi?'var(--purple-l)':'var(--bg)'};color:${multi?'var(--purple-d)':'var(--text2)'};padding:3px 10px;border-radius:20px;flex-shrink:0;font-family:'Nunito',sans-serif">${p.deptos.length} depto${multi?'s':''}</span>
+            <i class="ti ti-chevron-down" id="prop-arr-${p.safeKey}" style="font-size:16px;color:var(--text3);flex-shrink:0"></i>
+          </div>
+          <div id="prop-deptos-${p.safeKey}" style="display:none;padding:6px 14px 12px;background:var(--surface2);border-top:1px solid var(--border)">
+            ${p.deptos.map(d => {
+              const st = stageInfo(d.stage);
+              const p2 = pct(d);
+              return `<div onclick="openLead(${d.id})" style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:5px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .13s" onmouseover="this.style.borderColor='var(--purple)';this.style.transform='translateX(3px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.address || '<em style=\\'color:var(--red);font-style:italic\\'>Sin dirección</em>'}</div>
+                  <div style="font-size:10px;color:var(--text2)">${d.comuna || ''}${d.tipo_contrato ? ' · ' + (d.tipo_contrato === 'admin_amob' ? '🛋️ Adm.+Amob.' : '🏠 Adm.') : ''}</div>
+                </div>
+                <span style="font-size:9px;font-weight:800;background:${st.bg};color:${st.color};padding:2px 8px;border-radius:20px;flex-shrink:0">${st.emoji} ${st.label}</span>
+                <span style="font-size:10px;font-weight:800;color:${pctColor(p2)};min-width:34px;text-align:right;flex-shrink:0">${p2}%</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  c.innerHTML = html;
+}
+
+function togglePropietario(safeKey){
+  const div = document.getElementById('prop-deptos-' + safeKey);
+  const arr = document.getElementById('prop-arr-' + safeKey);
+  if(!div) return;
+  const isOpen = div.style.display !== 'none';
+  div.style.display = isOpen ? 'none' : 'block';
+  if(arr) arr.className = isOpen ? 'ti ti-chevron-down' : 'ti ti-chevron-up';
+}
 // Load from cloud on startup
 loadFromCloud();
 </script>
