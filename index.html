@@ -6167,6 +6167,226 @@ setTimeout(function(){
   setTimeout(ocultarMontoItemsRemovidos, 1000);
   setTimeout(ocultarMontoItemsRemovidos, 3500);
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V27: Items opcionales 1 plaza ═════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// Items opcionales [nombre, unidades, +50% lista, +35% descuento]
+window.AMOBLADOS_EXTRAS = [
+  ['Cama de 1 plaza', 225000, 202500],
+  ['Frazada 1 plaza', 14985, 13487],
+  ['Sábanas 1 plaza', 22500, 20250],
+  ['Plumón 1 plaza', 30000, 27000]
+];
+
+// Estado: índices marcados
+window.cliConfig = window.cliConfig || {};
+if(!window.cliConfig.itemsExtras) window.cliConfig.itemsExtras = [];
+
+function toggleExtra(idx){
+  const arr = window.cliConfig.itemsExtras;
+  const i = arr.indexOf(idx);
+  if(i >= 0) arr.splice(i, 1); else arr.push(idx);
+  renderAmobladosClientes(document.getElementById('mc'));
+}
+function isExtraMarcado(idx){
+  return (window.cliConfig.itemsExtras || []).includes(idx);
+}
+function calcExtras(){
+  let sumLista = 0, sumDscto = 0;
+  (window.cliConfig.itemsExtras || []).forEach(function(idx){
+    const it = window.AMOBLADOS_EXTRAS[idx];
+    if(it){ sumLista += it[1]; sumDscto += it[2]; }
+  });
+  return {lista: sumLista, dscto: sumDscto};
+}
+
+// Sobrescribir cliCalcTotal para incluir extras
+cliCalcTotal = function(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  let subSinDscto = 0, subConDscto = 0;
+  let descItemsCon = 0, descItemsLista = 0;
+  if(config.incluirAmoblado){
+    subSinDscto += window.getAmobPriceFull(tpl);
+    subConDscto += window.getAmobPriceDscto(tpl);
+    const di = calcDescuentoPorItems(tplKey);
+    descItemsLista = di.descLista;
+    descItemsCon = di.descConDscto;
+    subSinDscto -= descItemsLista;
+    subConDscto -= descItemsCon;
+    if(subSinDscto < 0) subSinDscto = 0;
+    if(subConDscto < 0) subConDscto = 0;
+  }
+  // Extras
+  const ex = calcExtras();
+  subSinDscto += ex.lista;
+  subConDscto += ex.dscto;
+  if(config.incluirAdicionales){
+    subSinDscto += window.ADIC_POR_TPL_LISTA[tplKey] || 521745;
+    subConDscto += window.ADIC_POR_TPL[tplKey] || 408240;
+  }
+  if(config.incluirAire){
+    subSinDscto += window.AIRE_COSTO;
+    subConDscto += window.AIRE_COSTO;
+  }
+  const nivel = config.descuentoNivel || 0;
+  let descCyberVal = 0;
+  if(nivel > 0){
+    descCyberVal = Math.round(subConDscto * (nivel/100));
+    subConDscto -= descCyberVal;
+  }
+  const iva = config.conIva ? Math.round(subConDscto * 0.19) : 0;
+  return {
+    subSinDscto, subConDscto, descCyberVal, descItemsCon, descItemsLista,
+    extrasLista: ex.lista, extrasDscto: ex.dscto,
+    descuentoCyberNivel: nivel,
+    descuentoAmob: subSinDscto - subConDscto - descCyberVal,
+    iva, total: subConDscto + iva,
+    ahorro: subSinDscto - subConDscto + descCyberVal
+  };
+};
+
+// Hook para inyectar el panel de extras y la sección en cotización
+(function(){
+  const __origRender_v27 = renderAmobladosClientes;
+  renderAmobladosClientes = function(c){
+    __origRender_v27(c);
+    setTimeout(function(){
+      try {
+        // 1) Inyectar panel de selección de extras en los controles (no-print)
+        const controlsBox = c.querySelector('.no-print');
+        if(controlsBox && !controlsBox.querySelector('.extras-panel')){
+          const extrasPanel = document.createElement('div');
+          extrasPanel.className = 'extras-panel';
+          extrasPanel.style.cssText = 'margin-top:12px;border-top:1px dashed var(--border);padding-top:10px';
+          let html = `<div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">➕ Opcionales (1 plaza)</div><div style="display:flex;gap:6px;flex-wrap:wrap">`;
+          window.AMOBLADOS_EXTRAS.forEach(function(it, idx){
+            const checked = isExtraMarcado(idx);
+            html += `<label style="display:flex;align-items:center;gap:6px;padding:7px 11px;border:2px solid ${checked?'var(--green)':'var(--border2)'};background:${checked?'var(--green-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700">
+              <input type="checkbox" ${checked?'checked':''} onchange="toggleExtra(${idx})" style="accent-color:var(--green)">
+              ${it[0]} <span style="color:var(--text3);font-size:10px;text-decoration:line-through">${formatCLP(it[1])}</span> <span style="color:var(--green-d);font-weight:900">${formatCLP(it[2])}</span>
+            </label>`;
+          });
+          html += `</div>`;
+          extrasPanel.innerHTML = html;
+          // Insertar antes del toggle del 5%
+          const toggle5 = controlsBox.querySelector('[onclick*="cycleDescuento"]')?.closest('div');
+          if(toggle5) toggle5.parentNode.insertBefore(extrasPanel, toggle5);
+          else controlsBox.appendChild(extrasPanel);
+        }
+        // 2) Agregar al resumen económico la línea de Opcionales
+        const ex = calcExtras();
+        if(ex.dscto > 0){
+          const resumen = c.querySelector('[style*="background:#f5f3eb"]');
+          if(resumen && !resumen.querySelector('.extras-line')){
+            // Buscar la línea "Subtotal de lista" y agregar arriba la línea de extras
+            const lineas = resumen.querySelectorAll('div[style*="space-between"]');
+            let subLineaIdx = -1;
+            lineas.forEach(function(l, i){
+              if(l.textContent.includes('Subtotal de lista')) subLineaIdx = i;
+            });
+            if(subLineaIdx >= 0){
+              const lineaExtras = document.createElement('div');
+              lineaExtras.className = 'extras-line';
+              lineaExtras.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;padding:6px 0';
+              lineaExtras.innerHTML = `<span style="font-size:13px;color:#1a1a1a">➕ Opcionales 1 plaza <span style="color:#8a8a8a;font-size:11px;text-decoration:line-through;margin-left:6px">${formatCLP(ex.lista)}</span></span><span class="exec-font" style="font-size:15px;font-weight:700;color:#1a1a1a">${formatCLP(ex.dscto)}</span>`;
+              lineas[subLineaIdx].parentNode.insertBefore(lineaExtras, lineas[subLineaIdx]);
+            }
+          }
+        }
+        // 3) Agregar sección OPCIONALES en la cotización (después del amoblado, antes de adicionales)
+        const cotPrint = c.querySelector('#cotizacion-print');
+        if(cotPrint && ex.dscto > 0 && !cotPrint.querySelector('.section-extras')){
+          const section = document.createElement('div');
+          section.className = 'section-extras';
+          section.style.cssText = 'padding:24px 40px 8px;page-break-inside:avoid';
+          let h = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><div style="width:30px;height:1px;background:#b8945a"></div><div class="exec-font" style="font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:#1a2b4a">Opcionales (1 plaza)</div><div style="flex:1;height:1px;background:#e8e3d6"></div></div><table style="width:100%;border-collapse:collapse">`;
+          (window.cliConfig.itemsExtras || []).forEach(function(idx){
+            const it = window.AMOBLADOS_EXTRAS[idx];
+            if(!it) return;
+            h += `<tr><td style="padding:8px 12px 8px 0;font-size:12px;color:#1a1a1a;border-bottom:1px solid #e8e3d6">${it[0]}</td><td style="padding:8px 0;text-align:right;font-size:12px;font-weight:700;color:#8a8a8a;border-bottom:1px solid #e8e3d6;width:60px">×1</td></tr>`;
+          });
+          h += `</table>`;
+          section.innerHTML = h;
+          // Insertar después del último sector del amoblado (o al inicio si no hay amoblado)
+          const sectoresAmob = cotPrint.querySelectorAll('div[style*="padding:24px 40px 8px"]');
+          if(sectoresAmob.length > 0){
+            const ultimoSector = sectoresAmob[sectoresAmob.length - 1];
+            ultimoSector.parentNode.insertBefore(section, ultimoSector.nextSibling);
+          } else {
+            cotPrint.appendChild(section);
+          }
+        }
+      } catch(e){ console.warn('V27 extras error:', e); }
+    }, 100);
+  };
+})();
+
+// También incluir extras en copiar
+(function(){
+  const __origCopiar_v27 = copiarCotizacionCliente;
+  copiarCotizacionCliente = function(){
+    // Llamar al original primero (genera el texto)
+    __origCopiar_v27();
+    // Como ya lo copió, lo regeneramos con los extras
+    setTimeout(function(){
+      const tplKey = window.AMOBLADOS_CLI_CURRENT;
+      const tpl = window.AMOBLADOS_TPL[tplKey];
+      const config = window.cliConfig;
+      const t = cliCalcTotal();
+      const ex = calcExtras();
+      const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+      const adicLista = window.ADIC_POR_TPL_LISTA[tplKey] || 521745;
+      const adicDscto = window.ADIC_POR_TPL[tplKey] || 408240;
+      const itemsDescNombres = (typeof getItemsDesmarcadosNombres === 'function') ? getItemsDesmarcadosNombres(tplKey) : [];
+      const cyberNivel = config.descuentoNivel || 0;
+      let texto = `*DOMUS RENTALS*\n*Cotización ${tpl.label}*\n_Estilo: ${estiloSel.label.replace(/[^\w\s]/g,'').trim()}_\n`;
+      if(config.paraQuien) texto += `_Para: ${config.paraQuien}_\n`;
+      texto += `\n`;
+      if(config.incluirAmoblado){
+        tpl.sectores.forEach(function(s, si){
+          const items = s.items.filter(function(it, ii){ return !isItemDesmarcado(tplKey, si, ii); });
+          if(!items.length) return;
+          texto += `*${s.nombre}*\n`;
+          items.forEach(function(it){ texto += `• ${it[0]} (×${it[1]})\n`; });
+          texto += `\n`;
+        });
+      }
+      // Opcionales
+      if((window.cliConfig.itemsExtras || []).length > 0){
+        texto += `*OPCIONALES (1 PLAZA)*\n`;
+        (window.cliConfig.itemsExtras || []).forEach(function(idx){
+          const it = window.AMOBLADOS_EXTRAS[idx];
+          if(it) texto += `• ${it[0]}\n`;
+        });
+        texto += `\n`;
+      }
+      if(config.incluirAdicionales){
+        texto += `*ADICIONALES*\n`;
+        window.AMOBLADOS_ADICIONALES.forEach(function(it){ texto += `• ${it[0]} (×${it[1]})\n`; });
+        texto += `\n`;
+      }
+      if(config.incluirAire) texto += `*Aire acondicionado incluido*\n\n`;
+      texto += `*RESUMEN:*\n`;
+      if(config.incluirAmoblado) texto += `• Amoblado: ${formatCLP(window.getAmobPriceDscto(tpl))}\n`;
+      if(itemsDescNombres.length){
+        texto += `• Items removidos:\n`;
+        itemsDescNombres.forEach(function(n){ texto += `   - ${n}\n`; });
+      }
+      if(ex.dscto > 0) texto += `• Opcionales 1 plaza: ${formatCLP(ex.dscto)}\n`;
+      if(config.incluirAdicionales) texto += `• Adicionales: ${formatCLP(adicDscto)}\n`;
+      if(config.incluirAire) texto += `• Aire acondicionado: ${formatCLP(window.AIRE_COSTO)}\n`;
+      if(cyberNivel > 0) texto += `• Descuento Cyber ${cyberNivel}% (válido hasta Mié 03 Junio 23:59): -${formatCLP(t.descCyberVal)}\n`;
+      texto += `• Subtotal: ${formatCLP(t.subConDscto)}\n`;
+      if(config.conIva) texto += `• IVA (19%): ${formatCLP(t.iva)}\n`;
+      texto += `\n*TOTAL: ${formatCLP(t.total)}*${config.conIva?' (con IVA)':''}\n`;
+      if(!config.conIva) texto += `\n_Valor no incluye IVA 19%_`;
+      if(navigator.clipboard) navigator.clipboard.writeText(texto);
+    }, 50);
+  };
+})();
 // Load from cloud on startup
 loadFromCloud();
 </script>
