@@ -5421,10 +5421,7 @@ function renderPropietariosAgrupados(c){
               const st = stageInfo(d.stage);
               const p2 = pct(d);
               return `<div onclick="openLead(${d.id})" style="padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:5px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .13s" onmouseover="this.style.borderColor='var(--purple)';this.style.transform='translateX(3px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.address || '<em style=\\'color:var(--red);font-style:italic\\'>Sin dirección</em>'}</div>
-                  <div style="font-size:10px;color:var(--text2)">${d.comuna || ''}${d.tipo_contrato ? ' · ' + (d.tipo_contrato === 'admin_amob' ? '🛋️ Adm.+Amob.' : '🏠 Adm.') : ''}</div>
-                </div>
+              <div style="font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.address || '<em style="color:#dc2626;font-style:italic">Sin dirección</em>'}</div>
                 <span style="font-size:9px;font-weight:800;background:${st.bg};color:${st.color};padding:2px 8px;border-radius:20px;flex-shrink:0">${st.emoji} ${st.label}</span>
                 <span style="font-size:10px;font-weight:800;color:${pctColor(p2)};min-width:34px;text-align:right;flex-shrink:0">${p2}%</span>
               </div>`;
