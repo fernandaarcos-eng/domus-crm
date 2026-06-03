@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reservas — Domus Rentals</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f3ef; --surface: #ffffff; --surface2: #f9f8f5; --border: #e5e3dc;
+    --text: #1a1916; --text2: #6b6960; --text3: #9e9c94;
+    --accent: #7c5cfc; --accent-light: #ede9ff;
+    --green: #22c55e; --green-light: #dcfce7;
+    --red: #ef4444; --red-light: #fee2e2;
+    --amber: #f59e0b; --amber-light: #fef3c7;
+    --blue: #3b82f6; --blue-light: #dbeafe;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06); --radius: 10px; --radius-sm: 6px;
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+
+  /* LOGIN */
+  .login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 40px; width: 100%; max-width: 380px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); }
+  .login-logo { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+  .login-logo span { color: var(--accent); }
+  .login-sub { font-size: 13px; color: var(--text2); margin-bottom: 32px; }
+  .login-label { font-size: 12px; font-weight: 500; color: var(--text2); display: block; margin-bottom: 5px; }
+  .login-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); outline: none; margin-bottom: 14px; transition: border-color 0.15s; }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn { width: 100%; padding: 10px; background: var(--accent); color: white; border: none; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 4px; transition: background 0.15s; }
+  .login-btn:hover { background: #6a4de0; }
+  .login-error { font-size: 12px; color: var(--red); margin-top: 10px; text-align: center; min-height: 18px; }
+
+  /* APP */
+  .app { display: none; flex-direction: column; min-height: 100vh; }
+  .app.visible { display: flex; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+  .header-left { display: flex; align-items: center; gap: 16px; }
+  .logo { font-size: 13px; font-weight: 600; }
+  .logo span { color: var(--accent); }
+  .divider-v { width: 1px; height: 20px; background: var(--border); }
+  .page-title { font-size: 13px; color: var(--text2); }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .user-chip { display: flex; align-items: center; gap: 7px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 6px; font-size: 12px; font-weight: 500; }
+  .user-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--accent); }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: #6a4de0; }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-checkin { background: var(--green-light); color: #15803d; border: 1px solid #bbf7d0; }
+  .btn-checkin:hover { background: #bbf7d0; }
+  .btn-logout { background: transparent; color: var(--text3); border: none; font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; padding: 4px 8px; border-radius: var(--radius-sm); }
+  .btn-logout:hover { background: var(--surface2); color: var(--text2); }
+
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; width: 100%; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; box-shadow: var(--shadow); }
+  .stat-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .stat-value { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; }
+  .stat-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+  .toolbar-left { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
+  .search-box { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 12px; flex: 1; max-width: 280px; }
+  .search-box input { border: none; outline: none; background: transparent; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); width: 100%; }
+  .search-box input::placeholder { color: var(--text3); }
+  .filter-tabs { display: flex; gap: 4px; }
+  .filter-tab { padding: 6px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--text2); transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .filter-tab.active { background: var(--accent); color: white; }
+  .filter-tab:hover:not(.active) { background: var(--surface2); }
+  select.filter-select { padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--text2); background: var(--surface); cursor: pointer; outline: none; }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { background: var(--surface2); }
+  th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 11px 14px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .mono { font-family: 'DM Mono', monospace; font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+  .badge-green { background: var(--green-light); color: #15803d; }
+  .badge-red { background: var(--red-light); color: #dc2626; }
+  .badge-amber { background: var(--amber-light); color: #b45309; }
+  .badge-blue { background: var(--blue-light); color: #1d4ed8; }
+  .badge-gray { background: #f1f0eb; color: var(--text2); }
+  .badge-purple { background: var(--accent-light); color: var(--accent); }
+  .platform { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--text2); }
+  .platform-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .p-airbnb { background: #ff5a5f; } .p-booking { background: #003580; } .p-expedia { background: #f59e0b; } .p-otro { background: var(--text3); }
+  .check-row { display: flex; gap: 3px; flex-wrap: wrap; }
+  .check-pill { font-size: 10px; padding: 2px 5px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+  .check-ok { background: var(--green-light); color: #15803d; }
+  .check-no { background: #f1f0eb; color: var(--text3); }
+  .action-btn { padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 11px; color: var(--text2); font-family: 'DM Sans', sans-serif; transition: all 0.15s; }
+  .action-btn:hover { background: var(--surface2); color: var(--text); }
+  .empty { text-align: center; padding: 48px 24px; color: var(--text3); }
+  .empty-title { font-size: 14px; font-weight: 500; color: var(--text2); margin-bottom: 6px; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text3); }
+  .page-btns { display: flex; gap: 4px; }
+  .page-btn { padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 12px; font-family: 'DM Sans', sans-serif; color: var(--text2); transition: all 0.15s; }
+  .page-btn:hover { background: var(--surface2); }
+  .page-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* MODAL GENÉRICO */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 200; padding: 24px; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { opacity: 1; pointer-events: all; }
+  .modal { background: var(--surface); border-radius: 14px; width: 100%; max-width: 580px; box-shadow: 0 20px 60px rgba(0,0,0,0.15); transform: translateY(12px); transition: transform 0.2s; max-height: 90vh; overflow-y: auto; }
+  .modal-overlay.open .modal { transform: translateY(0); }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { width: 28px; height: 28px; border-radius: 6px; border: none; background: var(--surface2); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text2); transition: all 0.15s; }
+  .modal-close:hover { background: var(--border); }
+  .modal-body { padding: 20px 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; font-weight: 500; color: var(--text2); }
+  input, select, textarea { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text); background: var(--surface); outline: none; transition: border-color 0.15s; width: 100%; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 64px; }
+  .form-section { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin: 16px 0 10px; }
+  .checks-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .check-toggle { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; transition: all 0.15s; background: var(--surface2); }
+  .check-toggle.checked { border-color: var(--green); background: var(--green-light); }
+  .check-toggle span { font-size: 11px; font-weight: 500; color: var(--text2); text-align: center; }
+  .check-toggle.checked span { color: #15803d; }
+  .check-toggle .toggle-icon { font-size: 16px; }
+
+  /* VISTA CHECK-IN DEL DÍA */
+  .checkin-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 300; display: flex; align-items: flex-end; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .checkin-overlay.open { opacity: 1; pointer-events: all; }
+  .checkin-panel { background: var(--surface); width: 100%; max-width: 720px; max-height: 90vh; border-radius: 16px 16px 0 0; overflow-y: auto; transform: translateY(40px); transition: transform 0.25s; }
+  .checkin-overlay.open .checkin-panel { transform: translateY(0); }
+  .checkin-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .checkin-title { display: flex; flex-direction: column; gap: 3px; }
+  .checkin-title h2 { font-size: 16px; font-weight: 600; }
+  .checkin-title p { font-size: 12px; color: var(--text2); }
+  .checkin-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+  .checkin-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .checkin-card-header { padding: 14px 18px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .checkin-prop { font-size: 15px; font-weight: 600; }
+  .checkin-card-body { padding: 16px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .checkin-field { display: flex; flex-direction: column; gap: 3px; }
+  .checkin-field-label { font-size: 11px; color: var(--text3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; }
+  .checkin-field-value { font-size: 13px; font-weight: 500; }
+  .checkin-registros { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .checkin-registros-label { font-size: 11px; color: var(--text3); font-weight: 500; margin-right: 4px; }
+  .checkin-notas { padding: 10px 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text2); background: var(--amber-light); }
+  .checkin-empty { text-align: center; padding: 48px 24px; color: var(--text3); }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: var(--text); color: white; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; transform: translateY(60px); opacity: 0; transition: all 0.25s; z-index: 400; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="loginWrap">
+  <div class="login-card">
+    <div class="login-logo">Domus <span>Rentals</span></div>
+    <div class="login-sub">Departamento de Reservas — Ingresa con tu cuenta</div>
+    <label class="login-label">Usuario</label>
+    <input class="login-input" type="text" id="loginUser" placeholder="tu nombre" autocomplete="username">
+    <label class="login-label">Contraseña</label>
+    <input class="login-input" type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    <button class="login-btn" onclick="doLogin()">Ingresar</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <header>
+    <div class="header-left">
+      <div class="logo">Domus <span>Rentals</span></div>
+      <div class="divider-v"></div>
+      <div class="page-title">Reservas</div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-checkin" onclick="abrirCheckins()">✓ Mis check ins de hoy</button>
+      <button class="btn btn-primary" onclick="abrirModal()">+ Nueva Reserva</button>
+      <div class="user-chip">
+        <div class="user-avatar" id="userAvatar"></div>
+        <span id="userName"></span>
+      </div>
+      <button class="btn-logout" onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <div class="search-box">
+          <span style="color:var(--text3);font-size:15px">⌕</span>
+          <input type="text" id="searchInput" placeholder="Buscar pasajero, propiedad, N° reserva..." oninput="filtrar()">
+        </div>
+        <div class="filter-tabs">
+          <button class="filter-tab active" onclick="setEstadia('todos', this)">Todos</button>
+          <button class="filter-tab" onclick="setEstadia('En Curso', this)">En Curso</button>
+          <button class="filter-tab" onclick="setEstadia('Futura', this)">Futuras</button>
+          <button class="filter-tab" onclick="setEstadia('Finalizada', this)">Finalizadas</button>
+        </div>
+        <select class="filter-select" id="filterPlataforma" onchange="filtrar()">
+          <option value="">Todas las plataformas</option>
+          <option value="Airbnb">Airbnb</option>
+          <option value="Booking">Booking</option>
+          <option value="Expedia">Expedia</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div style="font-size:12px;color:var(--text3)" id="conteo"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Check In</th><th>Check Out</th><th>Noch.</th>
+            <th>Plataforma</th><th>N° Reserva</th>
+            <th>Pasajero</th><th>Propiedad</th>
+            <th>Estadía</th><th>Pago</th><th>Total</th>
+            <th>Registros</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </main>
+</div>
+
+<!-- MODAL NUEVA/EDITAR RESERVA -->
+<div class="modal-overlay" id="modalOverlay" onclick="cerrarModalOverlay(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">Nueva Reserva</div>
+      <button class="modal-close" onclick="cerrarModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Check In *</label>
+          <input type="date" id="f_checkin">
+        </div>
+        <div class="form-group">
+          <label>Check Out *</label>
+          <input type="date" id="f_checkout">
+        </div>
+        <div class="form-group">
+          <label>Plataforma *</label>
+          <select id="f_plataforma">
+            <option value="">Seleccionar</option>
+            <option value="Airbnb">Airbnb</option>
+            <option value="Booking">Booking</option>
+            <option value="Expedia">Expedia</option>
+            <option value="Otro">Otro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>N° Reserva *</label>
+          <input type="text" id="f_nro" placeholder="Ej: 5408095203">
+        </div>
+        <div class="form-group full">
+          <label>Pasajero *</label>
+          <input type="text" id="f_pasajero" placeholder="Nombre completo">
+        </div>
+        <div class="form-group">
+          <label>Propiedad *</label>
+          <input type="text" id="f_propiedad" placeholder="Ej: 503, 824, 1006">
+        </div>
+        <div class="form-group">
+          <label>Total (USD)</label>
+          <input type="number" id="f_total" placeholder="0.00" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>Pago</label>
+          <select id="f_pago">
+            <option value="">Pendiente</option>
+            <option value="OK">OK</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-section" id="secRegistros" style="display:none">Registros en sistemas</div>
+      <div class="checks-grid" id="gridRegistros" style="display:none">
+        <label class="check-toggle" id="t_aseo" onclick="toggleCheck('aseo')">
+          <span class="toggle-icon">🧹</span><span>Aseo</span>
+        </label>
+        <label class="check-toggle" id="t_airtable" onclick="toggleCheck('airtable')">
+          <span class="toggle-icon">🗄️</span><span>Airtable</span>
+        </label>
+        <label class="check-toggle" id="t_airbnb" onclick="toggleCheck('airbnb')">
+          <span class="toggle-icon">🏠</span><span>Airbnb</span>
+        </label>
+        <label class="check-toggle" id="t_expedia" onclick="toggleCheck('expedia')">
+          <span class="toggle-icon">✈️</span><span>Expedia</span>
+        </label>
+        <label class="check-toggle" id="t_info_prop" onclick="toggleCheck('info_prop')">
+          <span class="toggle-icon">👤</span><span>Info Prop.</span>
+        </label>
+        <label class="check-toggle" id="t_buscador" onclick="toggleCheck('buscador')">
+          <span class="toggle-icon">🔍</span><span>Buscador</span>
+        </label>
+      </div>
+      <div class="form-group full" style="margin-top:14px">
+        <label>Notas</label>
+        <textarea id="f_notas" placeholder="Observaciones, hora de llegada, instrucciones especiales..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarReserva()">Guardar Reserva</button>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL CHECK INS DEL DÍA -->
+<div class="checkin-overlay" id="checkinOverlay" onclick="cerrarCheckinOverlay(event)">
+  <div class="checkin-panel">
+    <div class="checkin-header">
+      <div class="checkin-title">
+        <h2>✓ Mis check ins de hoy</h2>
+        <p id="checkinFecha"></p>
+      </div>
+      <button class="modal-close" onclick="cerrarCheckins()">✕</button>
+    </div>
+    <div class="checkin-body" id="checkinBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── USUARIOS ─────────────────────────────────────────
+const USUARIOS = {
+  'jessica': { pass: 'domus2026', nombre: 'Jessica', admin: false },
+  'fabian':  { pass: 'domus2026', nombre: 'Fabián',  admin: false },
+  'nico':    { pass: 'domus2026', nombre: 'Nico',     admin: false },
+  'tomas':   { pass: 'domus2026', nombre: 'Tomas',    admin: true  },
+};
+
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbw96a5JY4uDnfd8ViTDGDAa97RCnSn62GAnVrOPnuivENXgOOMyoka348fYJctdFz_U/exec';
+const SESSION_KEY = 'domus_session';
+
+let reservas = [];
+let cargando = false;
+let usuarioActual = null;
+let editandoId = null;
+let filtroEstadiaActual = 'todos';
+let paginaActual = 1;
+const POR_PAGINA = 20;
+const checks = { aseo: false, airtable: false, airbnb: false, expedia: false, info_prop: false, buscador: false };
+
+// Cargar desde Google Sheets, con fallback a datos iniciales
+const DATOS_INICIALES = [{"id":1,"checkin":"2025-08-29","checkout":"2025-08-30","plataforma":"Booking","nro":"6638780331","pasajero":"Simón Bernal","propiedad":"430","telefono":"56 9 7288 1659","total":86.5,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":2,"checkin":"2025-08-30","checkout":"2025-08-31","plataforma":"Booking","nro":"6481280875","pasajero":"Francisco Chacon","propiedad":"412","telefono":"56 9 8924 4297","total":95.2,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":3,"checkin":"2025-09-03","checkout":"2025-09-05","plataforma":"Booking","nro":"5646547658","pasajero":"Karla Contreras","propiedad":"430","telefono":"56 9 2067 6049","total":110.83,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":4,"checkin":"2025-09-05","checkout":"2025-09-06","plataforma":"Booking","nro":"5771072718","pasajero":"Romina Trujillo","propiedad":"430","telefono":"56 9 7510 4053","total":72.22,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":5,"checkin":"2025-09-06","checkout":"2025-09-07","plataforma":"Booking","nro":"5431643378","pasajero":"Maximo Dominguez","propiedad":"430","telefono":"56 9 8868 8093","total":72.22,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":6,"checkin":"2025-08-28","checkout":"2025-09-08","plataforma":"Booking","nro":"6699159634","pasajero":"Marco Fuentes","propiedad":"1117","telefono":"56 9 7786 5923","total":419.01,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":7,"checkin":"2025-09-09","checkout":"2025-09-10","plataforma":"Booking","nro":"6512826907","pasajero":"Ronald Vergara","propiedad":"412","telefono":"56 9 5093 2169","total":72.22,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":8,"checkin":"2025-09-11","checkout":"2025-09-12","plataforma":"Booking","nro":"5295034904","pasajero":"Camilo Gonzalez","propiedad":"430","telefono":"56 9 6194 9279","total":66.7,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":9,"checkin":"2025-09-11","checkout":"2025-09-14","plataforma":"Booking","nro":"6409735466","pasajero":"Luisa Yañez","propiedad":"1117","telefono":"56 9 8444 5806","total":132.1,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":10,"checkin":"2025-09-13","checkout":"2025-09-16","plataforma":"Booking","nro":"5638536146","pasajero":"Manuel Cardenas","propiedad":"430","telefono":"56940651696","total":154.76,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":11,"checkin":"2025-09-17","checkout":"2025-09-18","plataforma":"Booking","nro":"5780266412","pasajero":"Sebastian Bravo","propiedad":"433","telefono":"56 9 5357 0985","total":61.89,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":12,"checkin":"2025-09-17","checkout":"2025-09-19","plataforma":"Airbnb","nro":"AIRBNB","pasajero":"Martin Flores","propiedad":"306","telefono":"App Airbnb","total":182.25,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":13,"checkin":"2025-09-16","checkout":"2025-09-20","plataforma":"Airbnb","nro":"AIRBNB","pasajero":"Ickra Allendes","propiedad":"2112","telefono":"App Airbnb","total":338.28,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":14,"checkin":"2025-09-17","checkout":"2025-09-21","plataforma":"Booking","nro":"5338111977","pasajero":"Ricardo Lara","propiedad":"430","telefono":"56 9 5883 9926","total":192.84,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":15,"checkin":"2025-09-20","checkout":"2025-09-21","plataforma":"Booking","nro":"5228487946","pasajero":"Maria Paz Yañez","propiedad":"1117","telefono":"56989776893","total":55.32,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":16,"checkin":"2025-09-26","checkout":"2025-09-27","plataforma":"Booking","nro":"5165179899","pasajero":"Alex Riquelme","propiedad":"817","telefono":"56969068511","total":52.51,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":17,"checkin":"2025-09-25","checkout":"2025-09-28","plataforma":"Booking","nro":"6670425348","pasajero":"Pedro San Roman","propiedad":"102","telefono":"","total":139.81,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":18,"checkin":"2025-09-26","checkout":"2025-09-28","plataforma":"Booking","nro":"6004325698","pasajero":"Alfonso Castro","propiedad":"1019","telefono":"56 9 7515 1912","total":101.54,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":19,"checkin":"2025-09-26","checkout":"2025-09-28","plataforma":"Booking","nro":"6446474814","pasajero":"rodrigo guajardo","propiedad":"121","telefono":"56 9 7930 5763","total":88.94,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":20,"checkin":"2025-09-27","checkout":"2025-09-28","plataforma":"Booking","nro":"6817392663","pasajero":"Daniela Uribe","propiedad":"430","telefono":"56 9 4059 1946","total":69.03,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":21,"checkin":"2025-09-27","checkout":"2025-09-28","plataforma":"Booking","nro":"6864001330","pasajero":"Diego Nieto","propiedad":"1117","telefono":"56 9 4208 3902","total":48.94,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":22,"checkin":"2025-09-23","checkout":"2025-09-29","plataforma":"Airbnb","nro":"DIRECTA","pasajero":"Darwin Salcedo","propiedad":"1005","telefono":"","total":378000.0,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":23,"checkin":"2025-09-26","checkout":"2025-09-29","plataforma":"Booking","nro":"6720850415","pasajero":"Yhen Duarte","propiedad":"1401","telefono":"56 9 2921 1281","total":137.24,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":24,"checkin":"2025-09-27","checkout":"2025-09-29","plataforma":"Booking","nro":"5892968397","pasajero":"Margoth Berrual","propiedad":"433","telefono":"56 9 3491 6060","total":108.3,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":25,"checkin":"2025-09-23","checkout":"2025-09-30","plataforma":"Booking","nro":"5214819464","pasajero":"Yahson Tan","propiedad":"317","telefono":"52 1 983 259 6967","total":207.34,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":26,"checkin":"2025-09-28","checkout":"2025-09-30","plataforma":"Booking","nro":"5443918190","pasajero":"Monica Schulze","propiedad":"430","telefono":"56 9 9883 7581","total":96.78,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":27,"checkin":"2025-09-29","checkout":"2025-09-30","plataforma":"Airbnb","nro":"WSP","pasajero":"Jose Rojas","propiedad":"1019","telefono":"56 9 3690 3386","total":64.65,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":28,"checkin":"2025-09-29","checkout":"2025-09-30","plataforma":"Booking","nro":"5363583454","pasajero":"Pamela Lagos","propiedad":"121","telefono":"56 9 8233 8824","total":54.32,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":29,"checkin":"2025-09-29","checkout":"2025-09-30","plataforma":"Booking","nro":"6682332535","pasajero":"Erik Yevenes","propiedad":"433","telefono":"","total":62.27,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":30,"checkin":"2025-09-25","checkout":"2025-10-01","plataforma":"Airbnb","nro":"DIRECTA","pasajero":"Gustavo Gomez","propiedad":"174","telefono":"","total":320.1,"pago":"OK","agente":"nico","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":31,"checkin":"2025-12-18","checkout":"2025-12-20","plataforma":"Booking","nro":"6009242272","pasajero":"Branimir Huayta","propiedad":"301.0","telefono":"","total":90.5,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":32,"checkin":"2025-12-19","checkout":"2025-12-20","plataforma":"Booking","nro":"6898178735","pasajero":"Leila Ortiz","propiedad":"509.0","telefono":"","total":60.7,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":33,"checkin":"2025-12-20","checkout":"2025-12-21","plataforma":"Booking","nro":"6100720724","pasajero":"Angel Cardoso","propiedad":"102.0","telefono":"","total":57.13,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":34,"checkin":"2025-12-20","checkout":"2025-12-21","plataforma":"Booking","nro":"5901363556","pasajero":"Gabriel Leyton","propiedad":"135.0","telefono":"","total":66.65,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":35,"checkin":"2025-12-20","checkout":"2025-12-21","plataforma":"Booking","nro":"6375424199","pasajero":"Andres Gatica","propiedad":"706.0","telefono":"","total":67.08,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":36,"checkin":"2025-12-21","checkout":"2025-12-22","plataforma":"Booking","nro":"6585735540","pasajero":"Ricardo Arroyo","propiedad":"706.0","telefono":"","total":67.07,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":37,"checkin":"2025-12-22","checkout":"2025-12-25","plataforma":"Airbnb","nro":"Airbnb","pasajero":"John Edinger","propiedad":"2006.0","telefono":"","total":129.27,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":38,"checkin":"2025-12-20","checkout":"2025-12-27","plataforma":"Booking","nro":"6788223653","pasajero":"Mayko Oliveira","propiedad":"301.0","telefono":"","total":230.92,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":39,"checkin":"2025-12-23","checkout":"2025-12-27","plataforma":"Booking","nro":"6775060070","pasajero":"Emma Thorion","propiedad":"229.0","telefono":"","total":160.66,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":40,"checkin":"2025-12-27","checkout":"2025-12-28","plataforma":"Booking","nro":"6286778044","pasajero":"Toty Navarro","propiedad":"711.0","telefono":"","total":54.75,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":41,"checkin":"2025-12-26","checkout":"2025-12-29","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Gonzalo Duran","propiedad":"706.0","telefono":"","total":135.32,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":42,"checkin":"2025-12-26","checkout":"2025-12-29","plataforma":"Booking","nro":"5460913583","pasajero":"Pedro Gonzalez","propiedad":"102.0","telefono":"","total":110.68,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":43,"checkin":"2025-12-31","checkout":"2026-01-01","plataforma":"Airbnb","nro":"Directa","pasajero":"Luis Gonzalez","propiedad":"711.0","telefono":"","total":75.55,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":44,"checkin":"2025-12-19","checkout":"2026-01-02","plataforma":"Booking","nro":"6100759823","pasajero":"Daniel Reyes","propiedad":"924.0","telefono":"","total":447.88,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":45,"checkin":"2025-12-31","checkout":"2026-01-02","plataforma":"Booking","nro":"6416304118","pasajero":"Emilio Varela","propiedad":"433.0","telefono":"","total":91.64,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":46,"checkin":"2025-12-27","checkout":"2026-01-03","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Maria Loebel","propiedad":"1405.0","telefono":"","total":237.86,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":47,"checkin":"2025-12-27","checkout":"2026-01-03","plataforma":"Booking","nro":"6696004939","pasajero":"Luciene Pereira","propiedad":"923.0","telefono":"","total":209.45,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":48,"checkin":"2026-01-02","checkout":"2026-01-03","plataforma":"Booking","nro":"6585712614","pasajero":"Camilo Salinas","propiedad":"924.0","telefono":"","total":70.65,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":49,"checkin":"2026-01-02","checkout":"2026-01-04","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Barbara Lopez","propiedad":"304.0","telefono":"","total":98.65,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":50,"checkin":"2025-12-29","checkout":"2026-01-05","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Alejandro Rivero","propiedad":"1005.0","telefono":"","total":262.21,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":51,"checkin":"2026-01-01","checkout":"2026-01-05","plataforma":"Booking","nro":"5486329161","pasajero":"Valentino Ayala","propiedad":"832.0","telefono":"","total":134.48,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":52,"checkin":"2026-01-02","checkout":"2026-01-06","plataforma":"Booking","nro":"6678925533","pasajero":"Rocio Cea","propiedad":"201.0","telefono":"","total":186.08,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":53,"checkin":"2026-01-05","checkout":"2026-01-06","plataforma":"Booking","nro":"5331640647","pasajero":"Matias Leyton","propiedad":"606.0","telefono":"","total":76.6,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":54,"checkin":"2025-12-22","checkout":"2026-01-08","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Juan Baena","propiedad":"2103.0","telefono":"","total":518.53,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":55,"checkin":"2025-12-29","checkout":"2026-01-08","plataforma":"Booking","nro":"5487435786","pasajero":"Scarlett Burgos","propiedad":"229.0","telefono":"","total":352.63,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":56,"checkin":"2026-01-06","checkout":"2026-01-08","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Rosario Villegas","propiedad":"923.0","telefono":"","total":75.11,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":57,"checkin":"2026-01-02","checkout":"2026-01-09","plataforma":"Airbnb","nro":"Directa","pasajero":"Daniel Reyes","propiedad":"136.0","telefono":"","total":244.62,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":58,"checkin":"2026-01-04","checkout":"2026-01-09","plataforma":"Booking","nro":"6218515090","pasajero":"Bressan Anabel","propiedad":"924.0","telefono":"","total":207.5,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":59,"checkin":"2026-01-08","checkout":"2026-01-10","plataforma":"Booking","nro":"5616800674","pasajero":"Camila Marin","propiedad":"923.0","telefono":"","total":96.4,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":60,"checkin":"2026-01-07","checkout":"2026-01-11","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Ximena Contreras","propiedad":"301.0","telefono":"","total":186.84,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":61,"checkin":"2026-01-08","checkout":"2026-01-11","plataforma":"Booking","nro":"5779031903","pasajero":"Braulio Ortiz","propiedad":"229.0","telefono":"","total":121.39,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":62,"checkin":"2026-01-09","checkout":"2026-01-11","plataforma":"Booking","nro":"6815282581","pasajero":"Ignacio Pavez","propiedad":"924.0","telefono":"","total":107.54,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":63,"checkin":"2026-01-09","checkout":"2026-01-11","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Ximena Cuevas","propiedad":"2006.0","telefono":"","total":110.73,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":64,"checkin":"2026-01-09","checkout":"2026-01-11","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Jorge Ortega","propiedad":"317.0","telefono":"","total":137.75,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":65,"checkin":"2026-01-09","checkout":"2026-01-11","plataforma":"Booking","nro":"5014656722","pasajero":"Valeria Segovia","propiedad":"215.0","telefono":"","total":94.4,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":66,"checkin":"2026-01-09","checkout":"2026-01-11","plataforma":"Booking","nro":"6304857011","pasajero":"Jessenia Flores","propiedad":"531.0","telefono":"","total":104.78,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":67,"checkin":"2026-01-10","checkout":"2026-01-11","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Barbara Gonzalez","propiedad":"1117.0","telefono":"","total":58.04,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":68,"checkin":"2026-01-10","checkout":"2026-01-11","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Tatiana Araya","propiedad":"1405.0","telefono":"","total":85.08,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":69,"checkin":"2026-01-10","checkout":"2026-01-11","plataforma":"Booking","nro":"5660523138","pasajero":"Lucas Carrasco","propiedad":"135.0","telefono":"","total":69.0,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":70,"checkin":"2026-01-09","checkout":"2026-01-13","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Barry Foord","propiedad":"509.0","telefono":"","total":131.71,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":71,"checkin":"2026-01-09","checkout":"2026-01-13","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Tashi Quinn","propiedad":"516.0","telefono":"","total":307.73,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":72,"checkin":"2026-01-10","checkout":"2026-01-13","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Daniela Acuña","propiedad":"1401.0","telefono":"","total":128.74,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":73,"checkin":"2026-01-10","checkout":"2026-01-13","plataforma":"Booking","nro":"5422555265","pasajero":"Diana Marin","propiedad":"606.0","telefono":"","total":155.95,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":74,"checkin":"2026-01-10","checkout":"2026-01-14","plataforma":"Booking","nro":"6475326489","pasajero":"Carlos Valladares","propiedad":"923.0","telefono":"","total":177.32,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":75,"checkin":"2026-01-12","checkout":"2026-01-14","plataforma":"Booking","nro":"5232859305","pasajero":"Christophe Sindres","propiedad":"301.0","telefono":"","total":111.92,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":76,"checkin":"2026-01-12","checkout":"2026-01-15","plataforma":"Booking","nro":"6325439298","pasajero":"Karen Escobar","propiedad":"706.0","telefono":"","total":161.09,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":77,"checkin":"2026-01-12","checkout":"2026-01-15","plataforma":"Booking","nro":"5024243766","pasajero":"Vanessa Leiva","propiedad":"201.0","telefono":"","total":161.09,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":78,"checkin":"2026-01-13","checkout":"2026-01-16","plataforma":"Booking","nro":"6995119173","pasajero":"Melissa Cortez","propiedad":"531.0","telefono":"","total":141.68,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":79,"checkin":"2026-01-13","checkout":"2026-01-16","plataforma":"Booking","nro":"6678967019","pasajero":"Lorena Alvarez","propiedad":"606.0","telefono":"","total":146.81,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":80,"checkin":"2026-01-14","checkout":"2026-01-16","plataforma":"Booking","nro":"6057888080","pasajero":"Jorge Buabud","propiedad":"923.0","telefono":"","total":94.02,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":81,"checkin":"2026-01-10","checkout":"2026-01-17","plataforma":"Booking","nro":"5453945422","pasajero":"Carolina Chimaja","propiedad":"318.0","telefono":"","total":272.9,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":82,"checkin":"2026-01-15","checkout":"2026-01-17","plataforma":"Booking","nro":"5423358495","pasajero":"Sofia Cerdeña","propiedad":"201.0","telefono":"","total":117.06,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":83,"checkin":"2026-01-15","checkout":"2026-01-17","plataforma":"Booking","nro":"5423358495","pasajero":"Sofia Cerdeña","propiedad":"301.0","telefono":"","total":117.06,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":84,"checkin":"2026-01-15","checkout":"2026-01-18","plataforma":"Booking","nro":"6602108995","pasajero":"Sergio Valdivia","propiedad":"1005.0","telefono":"","total":164.66,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":85,"checkin":"2026-01-16","checkout":"2026-01-18","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Frederic Eichelmann","propiedad":"516.0","telefono":"","total":185.9,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":86,"checkin":"2026-01-16","checkout":"2026-01-18","plataforma":"Booking","nro":"6583467601","pasajero":"Mauricio Coderch","propiedad":"923.0","telefono":"","total":94.02,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":87,"checkin":"2026-01-16","checkout":"2026-01-18","plataforma":"Booking","nro":"6227260164","pasajero":"Carlos Sanchez","propiedad":"215.0","telefono":"","total":78.12,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":88,"checkin":"2026-01-17","checkout":"2026-01-18","plataforma":"Booking","nro":"6659563801","pasajero":"Miguel Rubio","propiedad":"2103.0","telefono":"","total":63.08,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":89,"checkin":"2026-01-15","checkout":"2026-01-19","plataforma":"Booking","nro":"6095164936","pasajero":"Alejandra Rayen","propiedad":"104.0","telefono":"","total":116.2,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":90,"checkin":"2026-01-16","checkout":"2026-01-19","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Daniel Ahumada","propiedad":"606.0","telefono":"","total":183.61,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":91,"checkin":"2026-01-14","checkout":"2026-01-20","plataforma":"Booking","nro":"5257288943","pasajero":"Kiara Valenzuela","propiedad":"229.0","telefono":"","total":255.4,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":92,"checkin":"2026-01-15","checkout":"2026-01-20","plataforma":"Booking","nro":"6095149143","pasajero":"Erick Nuñez","propiedad":"711.0","telefono":"","total":186.84,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":93,"checkin":"2026-01-17","checkout":"2026-01-20","plataforma":"Booking","nro":"6736736674","pasajero":"Efrain Funes","propiedad":"128.0","telefono":"","total":134.02,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":94,"checkin":"2026-01-19","checkout":"2026-01-21","plataforma":"Booking","nro":"6180270345","pasajero":"Natalia Reinaldi","propiedad":"706.0","telefono":"","total":119.44,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":95,"checkin":"2026-01-20","checkout":"2026-01-21","plataforma":"Booking","nro":"6087354136","pasajero":"Valentina Toledo","propiedad":"229.0","telefono":"","total":66.65,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":96,"checkin":"2026-01-19","checkout":"2026-01-23","plataforma":"Booking","nro":"6435804375","pasajero":"Jose Luis Varas","propiedad":"201.0","telefono":"","total":200.35,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":97,"checkin":"2026-01-22","checkout":"2026-01-23","plataforma":"Booking","nro":"5546218517","pasajero":"Isbad Huenchuñir","propiedad":"2103.0","telefono":"","total":60.7,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":98,"checkin":"2026-01-16","checkout":"2026-01-24","plataforma":"Airbnb","nro":"Directa","pasajero":"Jimmy Orocondo","propiedad":"114.0","telefono":"","total":266.25,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":99,"checkin":"2026-01-19","checkout":"2026-01-24","plataforma":"Booking","nro":"6821638763","pasajero":"Alejandra Erazo","propiedad":"301.0","telefono":"","total":223.4,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":100,"checkin":"2026-01-23","checkout":"2026-01-24","plataforma":"Booking","nro":"6023261952","pasajero":"Jennifer di Marco","propiedad":"229.0","telefono":"","total":61.89,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":101,"checkin":"2026-01-20","checkout":"2026-01-25","plataforma":"Booking","nro":"6659512323","pasajero":"Yurani Correa","propiedad":"215.0","telefono":"","total":145.95,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":102,"checkin":"2026-01-23","checkout":"2026-01-25","plataforma":"Booking","nro":"5468164040","pasajero":"Silvana de los Rios","propiedad":"531.0","telefono":"","total":101.16,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":103,"checkin":"2026-01-23","checkout":"2026-01-25","plataforma":"Booking","nro":"5258135038","pasajero":"Alhan Fernandez","propiedad":"928.0","telefono":"","total":91.64,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":104,"checkin":"2026-01-24","checkout":"2026-01-25","plataforma":"Booking","nro":"6386879320","pasajero":"Maria Jose Prieto","propiedad":"128.0","telefono":"","total":66.65,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":105,"checkin":"2026-01-19","checkout":"2026-01-26","plataforma":"Booking","nro":"6775072163","pasajero":"Cristian Borquez","propiedad":"606.0","telefono":"","total":262.24,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":106,"checkin":"2026-01-23","checkout":"2026-01-26","plataforma":"Booking","nro":"6461712227","pasajero":"Jhuliano Coussi","propiedad":"711.0","telefono":"","total":124.96,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":107,"checkin":"2026-01-24","checkout":"2026-01-26","plataforma":"Booking","nro":"6246273668","pasajero":"Ronald Asenjo","propiedad":"832.0","telefono":"","total":91.64,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":108,"checkin":"2026-01-23","checkout":"2026-01-27","plataforma":"Airbnb","nro":"DIRECTA","pasajero":"Emilio Varela","propiedad":"923.0","telefono":"","total":177.32,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":109,"checkin":"2026-01-20","checkout":"2026-01-28","plataforma":"Airbnb","nro":"Airbnb","pasajero":"Alejandro Covarrubias","propiedad":"1005.0","telefono":"","total":317.58,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":110,"checkin":"2026-01-21","checkout":"2026-01-28","plataforma":"Booking","nro":"5295453462","pasajero":"Milton Gallardo","propiedad":"305.0","telefono":"","total":320.55,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":111,"checkin":"2026-01-23","checkout":"2026-01-28","plataforma":"Booking","nro":"6015173414","pasajero":"Mauricio Diaz","propiedad":"201.0","telefono":"","total":197.6,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":112,"checkin":"2026-01-20","checkout":"2026-01-29","plataforma":"Booking","nro":"5688474665","pasajero":"Felipe Hernandez","propiedad":"104.0","telefono":"","total":245.91,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":113,"checkin":"2026-01-26","checkout":"2026-01-29","plataforma":"Booking","nro":"6356788878","pasajero":"Gloria Herrera","propiedad":"606.0","telefono":"","total":164.66,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":114,"checkin":"2026-01-27","checkout":"2026-01-29","plataforma":"Booking","nro":"5557678020","pasajero":"Soraya Sandoval","propiedad":"531.0","telefono":"","total":101.16,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":115,"checkin":"2026-01-25","checkout":"2026-01-30","plataforma":"Booking","nro":"6704989277","pasajero":"Daniela Barrientos","propiedad":"1405.0","telefono":"","total":257.1,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":116,"checkin":"2026-01-27","checkout":"2026-01-30","plataforma":"Booking","nro":"6146024947","pasajero":"Johnny Marin","propiedad":"510.0","telefono":"","total":121.39,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":117,"checkin":"2026-01-28","checkout":"2026-01-30","plataforma":"Booking","nro":"5557639962","pasajero":"Cristian Armijo","propiedad":"1005.0","telefono":"","total":130.96,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":118,"checkin":"2026-01-30","checkout":"2026-02-02","plataforma":"Booking","nro":"6853466737","pasajero":"Liam Snowdon","propiedad":"531.0","telefono":"","total":126.64,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":119,"checkin":"2026-01-30","checkout":"2026-01-31","plataforma":"Booking","nro":"5713086383","pasajero":"Sebastián Ponce Ahengo","propiedad":"923.0","telefono":"","total":60.7,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":120,"checkin":"2026-01-31","checkout":"2026-02-01","plataforma":"Booking","nro":"6251805397","pasajero":"Nelly  Leiva","propiedad":"923.0","telefono":"","total":66.65,"pago":"","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":121,"checkin":"2026-01-31","checkout":"2026-02-01","plataforma":"Booking","nro":"5471137792","pasajero":"Francisca Acevedo","propiedad":"304.0","telefono":"","total":60.7,"pago":"OK","agente":"jessica","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":122,"checkin":"2025-08-29","checkout":"2025-08-30","plataforma":"Booking","nro":"6638780331","pasajero":"Simón Bernal","propiedad":"430","telefono":"56 9 7288 1659","total":86.5,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":123,"checkin":"2025-08-30","checkout":"2025-08-31","plataforma":"Booking","nro":"6481280875","pasajero":"Francisco Chacon","propiedad":"412","telefono":"56 9 8924 4297","total":95.2,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":124,"checkin":"2025-09-03","checkout":"2025-09-05","plataforma":"Booking","nro":"5646547658","pasajero":"Karla Contreras","propiedad":"430","telefono":"56 9 2067 6049","total":110.83,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":125,"checkin":"2025-09-05","checkout":"2025-09-06","plataforma":"Booking","nro":"5771072718","pasajero":"Romina Trujillo","propiedad":"430","telefono":"56 9 7510 4053","total":72.22,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":126,"checkin":"2025-09-06","checkout":"2025-09-07","plataforma":"Booking","nro":"5431643378","pasajero":"Maximo Dominguez","propiedad":"430","telefono":"56 9 8868 8093","total":72.22,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":127,"checkin":"2025-08-28","checkout":"2025-09-08","plataforma":"Booking","nro":"6699159634","pasajero":"Marco Fuentes","propiedad":"1117","telefono":"56 9 7786 5923","total":419.01,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":128,"checkin":"2025-09-09","checkout":"2025-09-10","plataforma":"Booking","nro":"6512826907","pasajero":"Ronald Vergara","propiedad":"412","telefono":"56 9 5093 2169","total":72.22,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":129,"checkin":"2025-09-11","checkout":"2025-09-12","plataforma":"Booking","nro":"5295034904","pasajero":"Camilo Gonzalez","propiedad":"430","telefono":"56 9 6194 9279","total":66.7,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":130,"checkin":"2025-09-11","checkout":"2025-09-14","plataforma":"Booking","nro":"6409735466","pasajero":"Luisa Yañez","propiedad":"1117","telefono":"56 9 8444 5806","total":132.1,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":131,"checkin":"2025-09-13","checkout":"2025-09-16","plataforma":"Booking","nro":"5638536146","pasajero":"Manuel Cardenas","propiedad":"430","telefono":"56940651696","total":154.76,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":132,"checkin":"2025-09-17","checkout":"2025-09-18","plataforma":"Booking","nro":"5780266412","pasajero":"Sebastian Bravo","propiedad":"433","telefono":"56 9 5357 0985","total":61.89,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":133,"checkin":"2025-09-17","checkout":"2025-09-19","plataforma":"Airbnb","nro":"AIRBNB","pasajero":"Martin Flores","propiedad":"306","telefono":"App Airbnb","total":182.25,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":134,"checkin":"2025-09-16","checkout":"2025-09-20","plataforma":"Airbnb","nro":"AIRBNB","pasajero":"Ickra Allendes","propiedad":"2112","telefono":"App Airbnb","total":338.28,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":135,"checkin":"2025-09-17","checkout":"2025-09-21","plataforma":"Booking","nro":"5338111977","pasajero":"Ricardo Lara","propiedad":"430","telefono":"56 9 5883 9926","total":192.84,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":136,"checkin":"2025-09-20","checkout":"2025-09-21","plataforma":"Booking","nro":"5228487946","pasajero":"Maria Paz Yañez","propiedad":"1117","telefono":"56989776893","total":55.32,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":137,"checkin":"2025-09-26","checkout":"2025-09-27","plataforma":"Booking","nro":"5165179899","pasajero":"Alex Riquelme","propiedad":"817","telefono":"56969068511","total":52.51,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":138,"checkin":"2025-09-25","checkout":"2025-09-28","plataforma":"Booking","nro":"6670425348","pasajero":"Pedro San Roman","propiedad":"102","telefono":"","total":139.81,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":139,"checkin":"2025-09-26","checkout":"2025-09-28","plataforma":"Booking","nro":"6004325698","pasajero":"Alfonso Castro","propiedad":"1019","telefono":"56 9 7515 1912","total":101.54,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":140,"checkin":"2025-09-26","checkout":"2025-09-28","plataforma":"Booking","nro":"6446474814","pasajero":"rodrigo guajardo","propiedad":"121","telefono":"56 9 7930 5763","total":88.94,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":141,"checkin":"2025-09-27","checkout":"2025-09-28","plataforma":"Booking","nro":"6817392663","pasajero":"Daniela Uribe","propiedad":"430","telefono":"56 9 4059 1946","total":69.03,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":142,"checkin":"2025-09-27","checkout":"2025-09-28","plataforma":"Booking","nro":"6864001330","pasajero":"Diego Nieto","propiedad":"1117","telefono":"56 9 4208 3902","total":48.94,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":143,"checkin":"2025-09-23","checkout":"2025-09-29","plataforma":"Airbnb","nro":"DIRECTA","pasajero":"Darwin Salcedo","propiedad":"1005","telefono":"","total":378000.0,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":144,"checkin":"2025-09-26","checkout":"2025-09-29","plataforma":"Booking","nro":"6720850415","pasajero":"Yhen Duarte","propiedad":"1401","telefono":"56 9 2921 1281","total":137.24,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":145,"checkin":"2025-09-27","checkout":"2025-09-29","plataforma":"Booking","nro":"5892968397","pasajero":"Margoth Berrual","propiedad":"433","telefono":"56 9 3491 6060","total":108.3,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":146,"checkin":"2025-09-23","checkout":"2025-09-30","plataforma":"Booking","nro":"5214819464","pasajero":"Yahson Tan","propiedad":"317","telefono":"52 1 983 259 6967","total":207.34,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":147,"checkin":"2025-09-28","checkout":"2025-09-30","plataforma":"Booking","nro":"5443918190","pasajero":"Monica Schulze","propiedad":"430","telefono":"56 9 9883 7581","total":96.78,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":148,"checkin":"2025-09-29","checkout":"2025-09-30","plataforma":"Airbnb","nro":"WSP","pasajero":"Jose Rojas","propiedad":"1019","telefono":"56 9 3690 3386","total":64.65,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":149,"checkin":"2025-09-29","checkout":"2025-09-30","plataforma":"Booking","nro":"5363583454","pasajero":"Pamela Lagos","propiedad":"121","telefono":"56 9 8233 8824","total":54.32,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":150,"checkin":"2025-09-29","checkout":"2025-09-30","plataforma":"Booking","nro":"6682332535","pasajero":"Erik Yevenes","propiedad":"433","telefono":"","total":62.27,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""},{"id":151,"checkin":"2025-09-25","checkout":"2025-10-01","plataforma":"Airbnb","nro":"DIRECTA","pasajero":"Gustavo Gomez","propiedad":"174","telefono":"","total":320.1,"pago":"OK","agente":"fabian","aseo":false,"airtable":false,"airbnb":false,"expedia":false,"info_prop":false,"buscador":false,"notas":""}];
+
+async function cargarReservas() {
+  try {
+    const resp = await fetch(SHEET_URL + '?action=get');
+    const data = await resp.json();
+    if (Array.isArray(data) && data.length > 0) {
+      reservas = data.map(function(r) {
+        return {
+          id: parseInt(r.id) || Date.now(),
+          checkin: r.checkin || '',
+          checkout: r.checkout || '',
+          plataforma: r.plataforma || '',
+          nro: String(r.nro || ''),
+          pasajero: r.pasajero || '',
+          propiedad: String(r.propiedad || ''),
+          telefono: r.telefono || '',
+          total: parseFloat(r.total) || 0,
+          pago: r.pago || '',
+          agente: r.agente || '',
+          aseo: r.aseo === true || r.aseo === 'true',
+          airtable: r.airtable === true || r.airtable === 'true',
+          airbnb: r.airbnb === true || r.airbnb === 'true',
+          expedia: r.expedia === true || r.expedia === 'true',
+          info_prop: r.info_prop === true || r.info_prop === 'true',
+          buscador: r.buscador === true || r.buscador === 'true',
+          notas: r.notas || '',
+        };
+      });
+    } else {
+      // Primera vez — cargar datos iniciales y guardar en Sheets
+      reservas = DATOS_INICIALES;
+      await fetch(SHEET_URL, {
+        method: 'POST',
+        body: JSON.stringify({action: 'save', reservas: reservas})
+      });
+    }
+  } catch(e) {
+    console.error('Error cargando Sheets, usando datos locales:', e);
+    reservas = DATOS_INICIALES;
+  }
+  if (usuarioActual) { filtrar(); renderStats(); }
+}
+
+function guardarLocal() {
+  fetch(SHEET_URL, {
+    method: 'POST',
+    body: JSON.stringify({action: 'save', reservas: reservas})
+  }).catch(e => console.error('Error guardando:', e));
+}
+
+// ─── AUTH ─────────────────────────────────────────────
+function doLogin() {
+  const user = document.getElementById('loginUser').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+  if (USUARIOS[user] && USUARIOS[user].pass === pass) {
+    usuarioActual = { key: user, ...USUARIOS[user] };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(usuarioActual));
+    mostrarApp();
+  } else {
+    err.textContent = 'Usuario o contraseña incorrectos';
+    setTimeout(() => err.textContent = '', 3000);
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem(SESSION_KEY);
+  usuarioActual = null;
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('loginWrap').style.display = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+}
+
+function mostrarApp() {
+  document.getElementById('loginWrap').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  const ini = usuarioActual.nombre[0].toUpperCase();
+  document.getElementById('userAvatar').textContent = ini;
+  document.getElementById('userName').textContent = usuarioActual.nombre;
+  // Mostrar registros solo para admin
+  const esAdmin = usuarioActual.admin;
+  document.getElementById('secRegistros').style.display = esAdmin ? '' : 'none';
+  document.getElementById('gridRegistros').style.display = esAdmin ? 'grid' : 'none';
+  cargarReservas();
+}
+
+// Restaurar sesión
+const sesion = sessionStorage.getItem(SESSION_KEY);
+if (sesion) { usuarioActual = JSON.parse(sesion); mostrarApp(); }
+
+// Enter en login
+document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('loginUser').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('loginPass').focus(); });
+
+// ─── HELPERS ──────────────────────────────────────────
+function calcEstadia(ci, co) {
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const a = new Date(ci+'T00:00:00'), b = new Date(co+'T00:00:00');
+  if (b <= hoy) return 'Finalizada';
+  if (a <= hoy && b > hoy) return 'En Curso';
+  return 'Futura';
+}
+function calcNoches(ci, co) { return Math.round((new Date(co+'T00:00:00') - new Date(ci+'T00:00:00')) / 86400000); }
+function fmtFecha(iso) { return iso.split('-').reverse().join('-'); }
+function platColor(p) { return {Airbnb:'p-airbnb',Booking:'p-booking',Expedia:'p-expedia'}[p]||'p-otro'; }
+function misReservas() {
+  if (usuarioActual.admin) return reservas;
+  return reservas.filter(r => r.agente === usuarioActual.key);
+}
+
+// ─── STATS ────────────────────────────────────────────
+function renderStats() {
+  const mias = misReservas();
+  const enCurso = mias.filter(r => calcEstadia(r.checkin, r.checkout) === 'En Curso').length;
+  const futuras = mias.filter(r => calcEstadia(r.checkin, r.checkout) === 'Futura').length;
+  const total = mias.reduce((s,r) => s+(r.total||0), 0);
+  const sinPago = mias.filter(r => r.pago !== 'OK' && calcEstadia(r.checkin,r.checkout) !== 'Finalizada').length;
+  const hoy = new Date().toISOString().split('T')[0];
+  const checkins = mias.filter(r => r.checkin === hoy).length;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Check ins hoy</div><div class="stat-value" style="color:var(--green)">${checkins}</div><div class="stat-sub">Llegadas para hoy</div></div>
+    <div class="stat-card"><div class="stat-label">En Curso</div><div class="stat-value" style="color:var(--blue)">${enCurso}</div><div class="stat-sub">Estadías activas</div></div>
+    <div class="stat-card"><div class="stat-label">Futuras</div><div class="stat-value" style="color:var(--accent)">${futuras}</div><div class="stat-sub">Próximas reservas</div></div>
+    <div class="stat-card"><div class="stat-label">Pago pendiente</div><div class="stat-value" style="color:${sinPago>0?'var(--amber)':'var(--green)'}">${sinPago}</div><div class="stat-sub">Sin confirmar</div></div>
+  `;
+}
+
+// ─── FILTROS ──────────────────────────────────────────
+function setEstadia(val, el) {
+  filtroEstadiaActual = val;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  paginaActual = 1; filtrar();
+}
+
+function filtrar() {
+  if (!usuarioActual) return;
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const plat = document.getElementById('filterPlataforma').value;
+  let result = misReservas().filter(r => {
+    const est = calcEstadia(r.checkin, r.checkout);
+    if (filtroEstadiaActual !== 'todos' && est !== filtroEstadiaActual) return false;
+    if (plat && r.plataforma !== plat) return false;
+    if (q && ![r.pasajero,r.propiedad,r.nro].join(' ').toLowerCase().includes(q)) return false;
+    return true;
+  });
+  result.sort((a,b) => new Date(a.checkin)-new Date(b.checkin));
+  renderTabla(result);
+  renderStats();
+}
+
+// ─── TABLA ────────────────────────────────────────────
+function renderTabla(data) {
+  const total = data.length;
+  const inicio = (paginaActual-1)*POR_PAGINA;
+  const pagina = data.slice(inicio, inicio+POR_PAGINA);
+  document.getElementById('conteo').textContent = `${total} reserva${total!==1?'s':''}`;
+  const LABS = ['Aseo','Airtable','Airbnb','Expedia','Info P.','Busc.'];
+  const KEYS = ['aseo','airtable','airbnb','expedia','info_prop','buscador'];
+  const estBadge = {'En Curso':'badge-green','Futura':'badge-blue','Finalizada':'badge-gray'};
+  const esAdmin = usuarioActual.admin;
+  // Actualizar headers según rol
+  const thead = document.querySelector('thead tr');
+  thead.innerHTML = `
+    <th>Check In</th><th>Check Out</th><th>Noch.</th>
+    <th>Plataforma</th><th>N° Reserva</th>
+    <th>Pasajero</th><th>Propiedad</th>
+    <th>Estadía</th><th>Pago</th><th>Total</th>
+    ${esAdmin ? '<th>Registros</th><th>Agente</th>' : ''}
+    <th></th>
+  `;
+  const tbody = document.getElementById('tableBody');
+  if (!pagina.length) {
+    tbody.innerHTML = `<tr><td colspan="${esAdmin?13:11}"><div class="empty"><div class="empty-title">Sin resultados</div><div>Ajusta los filtros o agrega una nueva reserva</div></div></td></tr>`;
+  } else {
+    tbody.innerHTML = pagina.map(r => {
+      const est = calcEstadia(r.checkin, r.checkout);
+      return `<tr>
+        <td><span class="mono">${fmtFecha(r.checkin)}</span></td>
+        <td><span class="mono">${fmtFecha(r.checkout)}</span></td>
+        <td style="color:var(--text2)">${calcNoches(r.checkin,r.checkout)}n</td>
+        <td><div class="platform"><span class="platform-dot ${platColor(r.plataforma)}"></span>${r.plataforma}</div></td>
+        <td><span class="mono" style="color:var(--text2)">${r.nro}</span></td>
+        <td style="font-weight:500">${r.pasajero}</td>
+        <td><span class="badge badge-gray">Dpto ${r.propiedad}</span></td>
+        <td><span class="badge ${estBadge[est]||'badge-gray'}">${est}</span></td>
+        <td><span class="badge ${r.pago==='OK'?'badge-green':'badge-amber'}">${r.pago||'Pendiente'}</span></td>
+        <td style="font-weight:500">$${(r.total||0).toFixed(2)}</td>
+        ${esAdmin ? `
+        <td><div class="check-row">${KEYS.map((k,i)=>`<span class="check-pill ${r[k]?'check-ok':'check-no'}">${LABS[i]}</span>`).join('')}</div></td>
+        <td style="color:var(--text2);font-size:12px">${USUARIOS[r.agente]?.nombre||r.agente||'—'}</td>` : ''}
+        <td><div style="display:flex;gap:4px">
+          <button class="action-btn" onclick="editarReserva(${r.id})">Editar</button>
+          <button class="action-btn" onclick="eliminarReserva(${r.id})" style="color:var(--red)">✕</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
+  const totalPags = Math.ceil(total/POR_PAGINA);
+  const pag = document.getElementById('pagination');
+  if (totalPags <= 1) { pag.innerHTML=''; return; }
+  let btns = '';
+  for (let i=1;i<=totalPags;i++) btns+=`<button class="page-btn ${i===paginaActual?'active':''}" onclick="irPagina(${i})">${i}</button>`;
+  pag.innerHTML = `<span>${inicio+1}–${Math.min(inicio+POR_PAGINA,total)} de ${total}</span><div class="page-btns">${btns}</div>`;
+}
+
+function irPagina(n) { paginaActual=n; filtrar(); }
+
+// ─── CHECK INS DEL DÍA ────────────────────────────────
+function abrirCheckins() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const fechaStr = new Date().toLocaleDateString('es-CL', {weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('checkinFecha').textContent = fechaStr.charAt(0).toUpperCase()+fechaStr.slice(1);
+  const mias = misReservas().filter(r => r.checkin === hoy);
+  const LABS = ['Aseo','Airtable','Airbnb','Expedia','Info P.','Busc.'];
+  const KEYS = ['aseo','airtable','airbnb','expedia','info_prop','buscador'];
+  const body = document.getElementById('checkinBody');
+  if (!mias.length) {
+    body.innerHTML = `<div class="checkin-empty"><div style="font-size:32px;margin-bottom:12px">🎉</div><div style="font-size:15px;font-weight:500;color:var(--text2);margin-bottom:6px">Sin check ins hoy</div><div>No tienes llegadas programadas para hoy.</div></div>`;
+  } else {
+    body.innerHTML = mias.map(r => `
+      <div class="checkin-card">
+        <div class="checkin-card-header">
+          <div>
+            <div class="checkin-prop">Dpto ${r.propiedad}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${r.pasajero}</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <div class="platform"><span class="platform-dot ${platColor(r.plataforma)}"></span>${r.plataforma}</div>
+            <span class="badge badge-green">Check in hoy</span>
+          </div>
+        </div>
+        <div class="checkin-card-body">
+          <div class="checkin-field">
+            <div class="checkin-field-label">Check In</div>
+            <div class="checkin-field-value">${fmtFecha(r.checkin)}</div>
+          </div>
+          <div class="checkin-field">
+            <div class="checkin-field-label">Check Out</div>
+            <div class="checkin-field-value">${fmtFecha(r.checkout)}</div>
+          </div>
+          <div class="checkin-field">
+            <div class="checkin-field-label">Noches</div>
+            <div class="checkin-field-value">${calcNoches(r.checkin,r.checkout)}</div>
+          </div>
+          <div class="checkin-field">
+            <div class="checkin-field-label">N° Reserva</div>
+            <div class="checkin-field-value mono">${r.nro}</div>
+          </div>
+          <div class="checkin-field">
+            <div class="checkin-field-label">Total</div>
+            <div class="checkin-field-value">$${(r.total||0).toFixed(2)} USD</div>
+          </div>
+          <div class="checkin-field">
+            <div class="checkin-field-label">Pago</div>
+            <div class="checkin-field-value"><span class="badge ${r.pago==='OK'?'badge-green':'badge-amber'}">${r.pago||'Pendiente'}</span></div>
+          </div>
+        </div>
+        <div class="checkin-registros">
+          <span class="checkin-registros-label">Registros:</span>
+          ${KEYS.map((k,i)=>`<span class="check-pill ${r[k]?'check-ok':'check-no'}">${LABS[i]}</span>`).join('')}
+        </div>
+        ${r.notas?`<div class="checkin-notas">📝 ${r.notas}</div>`:''}
+      </div>
+    `).join('');
+  }
+  document.getElementById('checkinOverlay').classList.add('open');
+}
+
+function cerrarCheckins() { document.getElementById('checkinOverlay').classList.remove('open'); }
+function cerrarCheckinOverlay(e) { if (e.target===document.getElementById('checkinOverlay')) cerrarCheckins(); }
+
+// ─── MODAL ────────────────────────────────────────────
+function abrirModal(id=null) {
+  editandoId = id; limpiarForm();
+  if (id) {
+    const r = reservas.find(x=>x.id===id);
+    if(!r) return;
+    document.getElementById('modalTitle').textContent = 'Editar Reserva';
+    document.getElementById('f_checkin').value = r.checkin;
+    document.getElementById('f_checkout').value = r.checkout;
+    document.getElementById('f_plataforma').value = r.plataforma;
+    document.getElementById('f_nro').value = r.nro;
+    document.getElementById('f_pasajero').value = r.pasajero;
+    document.getElementById('f_propiedad').value = r.propiedad;
+    document.getElementById('f_total').value = r.total||'';
+    document.getElementById('f_pago').value = r.pago||'';
+    document.getElementById('f_notas').value = r.notas||'';
+    ['aseo','airtable','airbnb','expedia','info_prop','buscador'].forEach(k => {
+      checks[k]=r[k]||false;
+      document.getElementById('t_'+k).classList.toggle('checked', r[k]);
+    });
+  } else {
+    document.getElementById('modalTitle').textContent = 'Nueva Reserva';
+  }
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function cerrarModal() { document.getElementById('modalOverlay').classList.remove('open'); editandoId=null; }
+function cerrarModalOverlay(e) { if(e.target===document.getElementById('modalOverlay')) cerrarModal(); }
+
+function limpiarForm() {
+  ['f_checkin','f_checkout','f_nro','f_pasajero','f_propiedad','f_total','f_notas'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f_plataforma').value='';
+  document.getElementById('f_pago').value='';
+  Object.keys(checks).forEach(k=>{checks[k]=false;document.getElementById('t_'+k).classList.remove('checked');});
+}
+
+function toggleCheck(key) {
+  checks[key]=!checks[key];
+  document.getElementById('t_'+key).classList.toggle('checked',checks[key]);
+}
+
+function guardarReserva() {
+  const ci=document.getElementById('f_checkin').value;
+  const co=document.getElementById('f_checkout').value;
+  const nro=document.getElementById('f_nro').value.trim();
+  const pas=document.getElementById('f_pasajero').value.trim();
+  const prop=document.getElementById('f_propiedad').value.trim();
+  const plat=document.getElementById('f_plataforma').value;
+  if (!ci||!co||!nro||!pas||!prop||!plat) { mostrarToast('⚠️ Completa los campos obligatorios'); return; }
+  if (new Date(co)<=new Date(ci)) { mostrarToast('⚠️ Check Out debe ser posterior al Check In'); return; }
+  const obj = {
+    id: editandoId||Date.now(),
+    checkin:ci, checkout:co, plataforma:plat, nro,
+    pasajero:pas, propiedad:prop,
+    total: parseFloat(document.getElementById('f_total').value)||0,
+    pago: document.getElementById('f_pago').value,
+    agente: usuarioActual.key,
+    notas: document.getElementById('f_notas').value.trim(),
+    ...Object.fromEntries(Object.entries(checks)),
+  };
+  if (editandoId) {
+    const idx=reservas.findIndex(r=>r.id===editandoId);
+    reservas[idx]=obj;
+    mostrarToast('✓ Reserva actualizada');
+  } else {
+    reservas.unshift(obj);
+    mostrarToast('✓ Reserva registrada');
+  }
+  guardarLocal(); cerrarModal(); filtrar();
+}
+
+function editarReserva(id) { abrirModal(id); }
+function eliminarReserva(id) {
+  if (!confirm('¿Eliminar esta reserva?')) return;
+  reservas=reservas.filter(r=>r.id!==id);
+  guardarLocal(); filtrar(); mostrarToast('Reserva eliminada');
+}
+
+function mostrarToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+</script>
+</body>
+</html>
