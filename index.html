@@ -6121,6 +6121,52 @@ setTimeout(function(){
     }, 80);
   };
 })();
+  // ═══ V26: Fix ocultar monto items removidos (selector robusto) ═══
+(function(){
+  function ocultarMontoItemsRemovidos(){
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    // Buscar el contenedor que tiene "Items removidos del amoblado"
+    mc.querySelectorAll('div').forEach(function(parent){
+      const txt = parent.textContent || '';
+      if(!txt.includes('Items removidos')) return;
+      // Dentro de este contenedor, buscar div flex con monto
+      parent.querySelectorAll('div').forEach(function(fd){
+        const style = fd.getAttribute('style') || '';
+        if(!style.includes('space-between')) return;
+        const fdText = fd.textContent.replace(/\s/g,'');
+        // Si el contenido del flex es solo un monto con − al inicio
+        if(/^[−-]\$[\d.,]+$/.test(fdText)){
+          fd.style.display = 'none';
+        }
+      });
+      // Plan B: ocultar cualquier span con solo "−$..."
+      parent.querySelectorAll('span').forEach(function(s){
+        const t = (s.textContent || '').trim();
+        if(/^[−-]\$[\d.,]+$/.test(t)){
+          // Subir al padre directo y ocultarlo
+          const flexP = s.parentElement;
+          if(flexP && (flexP.getAttribute('style') || '').includes('space-between')){
+            flexP.style.display = 'none';
+          } else {
+            s.style.display = 'none';
+          }
+        }
+      });
+    });
+  }
+  // Interceptar el render
+  const __origRender_v26 = renderAmobladosClientes;
+  renderAmobladosClientes = function(c){
+    __origRender_v26(c);
+    setTimeout(ocultarMontoItemsRemovidos, 30);
+    setTimeout(ocultarMontoItemsRemovidos, 200);
+    setTimeout(ocultarMontoItemsRemovidos, 700);
+  };
+  // Aplicar al cargar
+  setTimeout(ocultarMontoItemsRemovidos, 1000);
+  setTimeout(ocultarMontoItemsRemovidos, 3500);
+})();
 // Load from cloud on startup
 loadFromCloud();
 </script>
