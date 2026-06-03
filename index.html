@@ -5767,6 +5767,53 @@ renderAmobladosCotizador = function(c){
   });
   c.innerHTML = html;
 };
+  // ═══ V21: Restaurar columna +35% en cotizador interno ═══
+renderAmobladosCotizador = function(c){
+  const tplKey = window.AMOBLADOS_CURRENT || 'studio';
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  let html = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button class="btn btn-p btn-sm" onclick="copiarCotizacionInterna()"><i class="ti ti-copy"></i>Copiar cotización</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      ${Object.entries(window.AMOBLADOS_TPL).map(([k,t])=>`<button onclick="window.AMOBLADOS_CURRENT='${k}'; renderAmobladosCotizador(document.getElementById('mc'))" style="display:flex;align-items:center;gap:8px;padding:10px 16px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:var(--rsm);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:12px"><span style="font-size:18px">${t.emoji}</span>${t.label}</button>`).join('')}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:18px">
+      <div style="background:var(--purple-l);border:2px solid var(--purple);border-radius:var(--rsm);padding:12px 14px"><div style="font-size:10px;color:var(--purple-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Total amoblado (+50%)</div><div class="N" style="font-size:18px;font-weight:900;color:var(--purple-d);margin-top:2px">${formatCLP(tpl.totales.amob)}</div></div>
+      <div style="background:var(--green-l);border:2px solid var(--green);border-radius:var(--rsm);padding:12px 14px"><div style="font-size:10px;color:var(--green-d);font-weight:900;text-transform:uppercase;letter-spacing:.05em">Con descuento (+35%)</div><div class="N" style="font-size:18px;font-weight:900;color:var(--green-d);margin-top:2px">${formatCLP(tpl.totales.amobDscto)}</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--text2);font-style:italic;margin-bottom:14px">Valores no incluyen IVA 19% · La columna <strong>+35%</strong> es la que se usa para calcular cotizaciones a clientes</div>
+  `;
+  tpl.sectores.forEach(s => {
+    html += `<div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden">
+      <div style="background:var(--bg);padding:10px 14px;font-family:'Nunito',sans-serif;font-weight:900;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--text);border-bottom:2px solid var(--border)">${s.nombre}</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:8px 14px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2)">Item</th>
+          <th style="text-align:center;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:55px">Un.</th>
+          <th style="text-align:right;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:110px">Cotización</th>
+          <th style="text-align:right;padding:8px;font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;background:var(--surface2);width:110px">+ 50%</th>
+          <th style="text-align:right;padding:8px 14px;font-size:10px;font-weight:800;color:var(--green-d);text-transform:uppercase;background:var(--green-l);width:110px">+ 35% ⭐</th>
+        </tr></thead>
+        <tbody>
+          ${s.items.map(it=>`<tr>
+            <td style="padding:8px 14px;font-size:12px;border-bottom:1px solid var(--border)">${it[0]}</td>
+            <td style="padding:8px;text-align:center;font-size:12px;font-weight:700;border-bottom:1px solid var(--border)">${it[1]}</td>
+            <td style="padding:8px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border)">${formatCLP(it[2])}</td>
+            <td style="padding:8px;text-align:right;font-size:11px;color:var(--text2);border-bottom:1px solid var(--border)">${formatCLP(it[3])}</td>
+            <td style="padding:8px 14px;text-align:right;font-size:12px;font-weight:800;color:var(--green-d);background:var(--green-l);border-bottom:1px solid var(--border)">${formatCLP(it[4])}</td>
+          </tr>`).join('')}
+          ${s.subtotal && (s.subtotal[0]||s.subtotal[1])?`<tr style="background:var(--bg)">
+            <td colspan="3" style="padding:8px 14px;font-size:11px;font-weight:900;font-family:'Nunito',sans-serif;text-align:right">SUBTOTAL ${s.nombre}</td>
+            <td style="padding:8px;text-align:right;font-size:12px;font-weight:900;color:var(--text)">${formatCLP(s.subtotal[0])}</td>
+            <td style="padding:8px 14px;text-align:right;font-size:12px;font-weight:900;color:var(--green-d);background:var(--green-l)">${formatCLP(s.subtotal[1])}</td>
+          </tr>`:''}
+        </tbody>
+      </table>
+    </div>`;
+  });
+  c.innerHTML = html;
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
