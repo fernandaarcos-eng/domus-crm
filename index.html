@@ -6078,6 +6078,26 @@ copiarCotizacionCliente = function(){
   if(navigator.clipboard) navigator.clipboard.writeText(texto);
   toast('📋 Cotización lista');
 };
+  // ═══ V24: Eliminar TERRAZA de todas las plantillas ═══
+setTimeout(function(){
+  if(!window.AMOBLADOS_TPL) return;
+  Object.keys(window.AMOBLADOS_TPL).forEach(function(k){
+    const tpl = window.AMOBLADOS_TPL[k];
+    if(!tpl || !tpl.sectores) return;
+    // Quitar cualquier sector que tenga TERRAZA o se llame "BALCÓN"
+    tpl.sectores = tpl.sectores.filter(function(s){
+      const esBalcon = (s.nombre||'').toUpperCase().includes('BALCÓN') || (s.nombre||'').toUpperCase().includes('BALCON');
+      if(esBalcon) return false;
+      // Por si TERRAZA aparece como item en otro sector, también quitarlo
+      if(s.items) s.items = s.items.filter(function(it){ return (it[0]||'').toUpperCase() !== 'TERRAZA'; });
+      return true;
+    });
+  });
+  // Re-renderizar si está en alguna vista de amoblados
+  if(['amoblados-cotizador','amoblados-clientes','amoblados-adicionales'].includes(currentView)){
+    if(typeof renderView === 'function') renderView();
+  }
+}, 1200);
 // Load from cloud on startup
 loadFromCloud();
 </script>
