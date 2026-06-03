@@ -5814,6 +5814,270 @@ renderAmobladosCotizador = function(c){
   });
   c.innerHTML = html;
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ V22: Cyber 5/10/15 + items visibles + para quién ═════
+// ═══════════════════════════════════════════════════════════
+
+window.cliConfig = window.cliConfig || {};
+if(window.cliConfig.descuentoNivel === undefined){
+  window.cliConfig.descuentoNivel = window.cliConfig.descuento5 ? 5 : 0;
+}
+if(window.cliConfig.paraQuien === undefined) window.cliConfig.paraQuien = '';
+
+function cycleDescuento(){
+  const niveles = [0, 5, 10, 15];
+  const i = niveles.indexOf(window.cliConfig.descuentoNivel || 0);
+  window.cliConfig.descuentoNivel = niveles[(i + 1) % niveles.length];
+  window.cliConfig.descuento5 = window.cliConfig.descuentoNivel > 0;
+  renderAmobladosClientes(document.getElementById('mc'));
+  const n = window.cliConfig.descuentoNivel;
+  toast(n ? '🔓 Cyber ' + n + '% activo' : '🔒 Sin descuento Cyber');
+}
+function updParaQuien(val){
+  window.cliConfig.paraQuien = val || '';
+}
+function getItemsDesmarcadosNombres(tipKey){
+  const tpl = window.AMOBLADOS_TPL[tipKey];
+  if(!tpl) return [];
+  const desmarcados = (window.cliConfig.itemsDesmarcados || {})[tipKey] || [];
+  return desmarcados.map(key => {
+    const parts = key.split('-').map(Number);
+    const si = parts[0], ii = parts[1];
+    if(tpl.sectores[si] && tpl.sectores[si].items[ii]){
+      return tpl.sectores[si].items[ii][0];
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+// cliCalcTotal con descuento por nivel
+cliCalcTotal = function(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  let subSinDscto = 0, subConDscto = 0;
+  let descItemsCon = 0, descItemsLista = 0;
+  if(config.incluirAmoblado){
+    subSinDscto += window.getAmobPriceFull(tpl);
+    subConDscto += window.getAmobPriceDscto(tpl);
+    const di = calcDescuentoPorItems(tplKey);
+    descItemsLista = di.descLista;
+    descItemsCon = di.descConDscto;
+    subSinDscto -= descItemsLista;
+    subConDscto -= descItemsCon;
+    if(subSinDscto < 0) subSinDscto = 0;
+    if(subConDscto < 0) subConDscto = 0;
+  }
+  if(config.incluirAdicionales){
+    subSinDscto += window.ADIC_POR_TPL_LISTA[tplKey] || 521745;
+    subConDscto += window.ADIC_POR_TPL[tplKey] || 408240;
+  }
+  if(config.incluirAire){
+    subSinDscto += window.AIRE_COSTO;
+    subConDscto += window.AIRE_COSTO;
+  }
+  const nivel = config.descuentoNivel || 0;
+  let descCyberVal = 0;
+  if(nivel > 0){
+    descCyberVal = Math.round(subConDscto * (nivel/100));
+    subConDscto -= descCyberVal;
+  }
+  const iva = config.conIva ? Math.round(subConDscto * 0.19) : 0;
+  return {
+    subSinDscto, subConDscto, descCyberVal, descItemsCon, descItemsLista,
+    descuentoCyberNivel: nivel,
+    descuentoAmob: subSinDscto - subConDscto - descCyberVal,
+    iva, total: subConDscto + iva,
+    ahorro: subSinDscto - subConDscto + descCyberVal
+  };
+};
+
+renderAmobladosClientes = function(c){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const t = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  const adicLista = window.ADIC_POR_TPL_LISTA[tplKey] || 521745;
+  const adicDscto = window.ADIC_POR_TPL[tplKey] || 408240;
+  const amobFull = window.getAmobPriceFull(tpl);
+  const amobDscto = window.getAmobPriceDscto(tpl);
+  const desmarcadosCount = ((window.cliConfig.itemsDesmarcados||{})[tplKey] || []).length;
+  const itemsDescNombres = getItemsDesmarcadosNombres(tplKey);
+  const P = '#1a2b4a', A = '#b8945a', BG = '#fafaf5', BG2 = '#f5f3eb', TXT = '#1a1a1a', SUB = '#8a8a8a', BD = '#e8e3d6';
+  const cyberNivel = config.descuentoNivel || 0;
+  const cyberLabel = cyberNivel > 0 ? `Descuento Cyber ${cyberNivel}%` : '';
+  const cyberSub = cyberNivel > 0 ? 'Válido hasta el Miércoles 03 de Junio a las 23:59' : '';
+  let html = `
+    <div class="no-print" style="background:var(--surface2);border:2px solid var(--border);border-radius:var(--r);padding:14px 16px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <div class="N" style="font-size:13px;font-weight:900">🛋️ Selecciona la cotización</div>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-sm" onclick="copiarCotizacionCliente()"><i class="ti ti-copy"></i>Copiar</button>
+          <button class="btn btn-sm btn-p" onclick="descargarCotizacion()"><i class="ti ti-download"></i>Descargar PDF</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:12px"><label>👤 Para (nombre del cliente)</label>
+        <input value="${(config.paraQuien||'').replace(/"/g,'&quot;')}" placeholder="Nombre del cliente..." onchange="updParaQuien(this.value);renderAmobladosClientes(document.getElementById('mc'))" style="padding:8px 12px;font-size:13px;width:100%;border:2px solid var(--border2);border-radius:var(--rsm);background:var(--surface);font-family:inherit">
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Tipo</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        ${Object.entries(window.AMOBLADOS_TPL).map(([k,t2])=>`<button onclick="window.AMOBLADOS_CLI_CURRENT='${k}'; renderAmobladosClientes(document.getElementById('mc'))" style="padding:7px 12px;border:2px solid ${tplKey===k?'var(--purple)':'var(--border2)'};background:${tplKey===k?'var(--purple)':'var(--surface)'};color:${tplKey===k?'#fff':'var(--text2)'};border-radius:20px;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;font-size:11px">${t2.emoji} ${t2.label}</button>`).join('')}
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Incluye</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAmoblado?'var(--green)':'var(--border2)'};background:${config.incluirAmoblado?'var(--green-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.incluirAmoblado?'checked':''} onchange="toggleCliOpt('incluirAmoblado')" style="accent-color:var(--green)"> 🛋️ Amoblado</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAdicionales?'var(--blue)':'var(--border2)'};background:${config.incluirAdicionales?'var(--blue-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.incluirAdicionales?'checked':''} onchange="toggleCliOpt('incluirAdicionales')" style="accent-color:var(--blue)"> ➕ Adicionales</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.incluirAire?'var(--sky)':'var(--border2)'};background:${config.incluirAire?'var(--sky-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.incluirAire?'checked':''} onchange="toggleCliOpt('incluirAire')" style="accent-color:var(--sky)"> ❄️ Aire ($598.990)</label>
+        <label style="display:flex;align-items:center;gap:6px;padding:8px 12px;border:2px solid ${config.conIva?'var(--amber)':'var(--border2)'};background:${config.conIva?'var(--amber-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer;font-size:11px;font-weight:700"><input type="checkbox" ${config.conIva?'checked':''} onchange="toggleCliOpt('conIva')" style="accent-color:var(--amber)"> 🧾 IVA 19%</label>
+      </div>
+      <div style="font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Estilo</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin-bottom:12px">
+        ${window.ESTILOS.map(e => `<div onclick="setEstiloCli('${e.id}')" style="padding:10px 12px;border:2px solid ${config.estilo===e.id?'var(--purple)':'var(--border2)'};background:${config.estilo===e.id?'var(--purple-l)':'var(--surface)'};border-radius:var(--rsm);cursor:pointer"><div style="font-size:12px;font-weight:900;color:${config.estilo===e.id?'var(--purple-d)':'var(--text)'};font-family:'Nunito',sans-serif">${e.label}</div><div style="font-size:9px;color:var(--text2);margin-top:2px">${e.desc}</div></div>`).join('')}
+      </div>
+      ${desmarcadosCount>0?`<div style="background:var(--amber-l);border:1px solid var(--amber);border-radius:var(--rsm);padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;font-size:11px"><span style="color:var(--amber-d);font-weight:700">⚠️ ${desmarcadosCount} item${desmarcadosCount>1?'s':''} removido${desmarcadosCount>1?'s':''}</span><button onclick="window.cliConfig.itemsDesmarcados['${tplKey}']=[];renderAmobladosClientes(document.getElementById('mc'))" style="font-size:10px;padding:4px 10px;border:1px solid var(--amber);background:var(--surface);color:var(--amber-d);border-radius:20px;cursor:pointer;font-weight:700">Restaurar todos</button></div>`:''}
+      <div style="text-align:right;border-top:1px dashed var(--border);padding-top:8px;margin-top:4px">
+        <span onclick="cycleDescuento()" style="font-size:10px;color:${cyberNivel?'var(--purple-d)':'var(--text3)'};cursor:pointer;font-weight:${cyberNivel?'900':'600'};user-select:none">${cyberNivel?'🔓 Cyber '+cyberNivel+'% ACTIVO (click para cambiar)':'· · · 🔒 · · ·'}</span>
+      </div>
+    </div>
+    <div id="cotizacion-print" style="background:${BG};font-family:'Nunito Sans',sans-serif;color:${TXT};border:1px solid ${BD};border-radius:4px;overflow:hidden">
+      <div style="padding:36px 40px 28px;background:${BG};border-bottom:1px solid ${BD};page-break-inside:avoid">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px">
+          <div>
+            <div class="exec-font" style="font-size:28px;font-weight:900;color:${P};letter-spacing:-.02em;margin-bottom:4px">DOMUS RENTALS</div>
+            <div style="width:60px;height:2px;background:${A};margin:8px 0 14px"></div>
+            <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:${SUB};font-weight:700">Cotización de amoblado</div>
+            <div class="exec-font" style="font-size:22px;font-weight:700;color:${TXT};margin-top:6px">${tpl.label}</div>
+            <div style="font-size:12px;color:${SUB};margin-top:4px;font-style:italic">Estilo ${estiloSel.label.replace(/[^\w\s]/g,'').trim()}</div>
+            ${config.paraQuien ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid ${BD}"><div style="font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:${SUB};font-weight:700">Cotización para</div><div class="exec-font" style="font-size:18px;font-weight:700;color:${P};margin-top:3px">${config.paraQuien}</div></div>` : ''}
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:${SUB};font-weight:700">Fecha</div>
+            <div style="font-size:14px;font-weight:700;color:${TXT};margin-top:4px">${new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'})}</div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:28px 40px;background:${BG2};border-bottom:1px solid ${BD};page-break-inside:avoid">
+        <div class="exec-font" style="font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:${A};margin-bottom:18px">Resumen económico</div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          ${config.incluirAmoblado?`<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0"><span style="font-size:13px;color:${TXT}">Amoblado de diseño <span style="color:${SUB};font-size:11px;text-decoration:line-through;margin-left:6px">${formatCLP(amobFull)}</span></span><span class="exec-font" style="font-size:15px;font-weight:700;color:${TXT}">${formatCLP(amobDscto)}</span></div>`:''}
+          ${t.descItemsCon>0?`<div style="padding:6px 0 4px 12px"><div style="color:#a16207;font-size:11px;font-weight:700;margin-bottom:4px">Items removidos del amoblado:</div>${itemsDescNombres.map(n=>`<div style="color:#a16207;font-size:11px;padding:1px 0;font-style:italic">• ${n}</div>`).join('')}<div style="display:flex;justify-content:space-between;padding-top:4px;color:#a16207;font-size:12px;font-weight:700"><span></span><span>−${formatCLP(t.descItemsCon)}</span></div></div>`:''}
+          ${config.incluirAdicionales?`<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0"><span style="font-size:13px;color:${TXT}">Adicionales <span style="color:${SUB};font-size:11px;text-decoration:line-through;margin-left:6px">${formatCLP(adicLista)}</span></span><span class="exec-font" style="font-size:15px;font-weight:700;color:${TXT}">${formatCLP(adicDscto)}</span></div>`:''}
+          ${config.incluirAire?`<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0"><span style="font-size:13px;color:${TXT}">Aire acondicionado</span><span class="exec-font" style="font-size:15px;font-weight:700;color:${TXT}">${formatCLP(window.AIRE_COSTO)}</span></div>`:''}
+          <div style="border-top:1px solid ${BD};margin:8px 0 4px"></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;color:${SUB};font-size:11px"><span>Subtotal de lista</span><span style="text-decoration:line-through">${formatCLP(t.subSinDscto)}</span></div>
+          ${cyberNivel>0?`<div style="padding:6px 0 4px;color:#15803d;font-size:11px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font-weight:700">${cyberLabel}</span><span style="font-weight:700">−${formatCLP(t.descCyberVal)}</span></div><div style="font-size:9px;font-style:italic;color:${SUB};margin-top:2px">${cyberSub}</div></div>`:''}
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;font-size:13px;font-weight:700;color:${TXT}"><span>Subtotal con descuento</span><span>${formatCLP(t.subConDscto)}</span></div>
+          ${config.conIva?`<div style="display:flex;justify-content:space-between;align-items:baseline;padding:3px 0;color:${SUB};font-size:11px"><span>IVA 19%</span><span style="font-weight:700">${formatCLP(t.iva)}</span></div>`:''}
+          <div style="border-top:2px solid ${P};margin:14px 0 8px"></div>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;padding:10px 0">
+            <div>
+              <div style="font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:${SUB};font-weight:700">Total final</div>
+              ${!config.conIva?`<div style="font-size:9px;color:${SUB};font-style:italic;margin-top:2px">Valor no incluye IVA 19%</div>`:''}
+            </div>
+            <div class="exec-font" style="font-size:36px;font-weight:900;color:${P};letter-spacing:-.02em">${formatCLP(t.total)}</div>
+          </div>
+          ${t.ahorro>0?`<div style="background:#fff8eb;border:1px solid #f0d999;padding:10px 14px;margin-top:10px;display:flex;align-items:center;gap:10px"><div style="width:24px;height:24px;background:${A};border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:900">✓</div><div style="font-size:12px;color:${TXT}"><strong>Su ahorro:</strong> ${formatCLP(t.ahorro)}</div></div>`:''}
+        </div>
+      </div>
+  `;
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach((s, si) => {
+      html += `<div style="padding:24px 40px 8px;page-break-inside:avoid">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+          <div style="width:30px;height:1px;background:${A}"></div>
+          <div class="exec-font" style="font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:${P}">${s.nombre}</div>
+          <div style="flex:1;height:1px;background:${BD}"></div>
+        </div>
+        <table style="width:100%;border-collapse:collapse">
+          ${s.items.map((it, ii) => {
+            const des = isItemDesmarcado(tplKey, si, ii);
+            return `<tr class="${des?'item-desmarcado':''}">
+              <td class="item-checkbox-cell" style="width:30px;padding:8px 0;vertical-align:middle"><input type="checkbox" ${des?'':'checked'} onchange="toggleItemDesmarcado('${tplKey}',${si},${ii})" style="accent-color:${P};width:14px;height:14px;cursor:pointer"></td>
+              <td class="item-nombre" style="padding:8px 12px 8px 0;font-size:12px;color:${TXT};border-bottom:1px solid ${BD}">${it[0]}</td>
+              <td style="padding:8px 0;text-align:right;font-size:12px;font-weight:700;color:${SUB};border-bottom:1px solid ${BD};width:60px">×${it[1]}</td>
+            </tr>`;
+          }).join('')}
+        </table>
+      </div>`;
+    });
+  }
+  if(config.incluirAdicionales){
+    html += `<div style="padding:24px 40px 8px;page-break-inside:avoid">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:30px;height:1px;background:${A}"></div>
+        <div class="exec-font" style="font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:${P}">Adicionales</div>
+        <div style="flex:1;height:1px;background:${BD}"></div>
+      </div>
+      <table style="width:100%;border-collapse:collapse">
+        ${window.AMOBLADOS_ADICIONALES.map(it => `<tr><td style="padding:8px 12px 8px 0;font-size:12px;color:${TXT};border-bottom:1px solid ${BD}">${it[0]}</td><td style="padding:8px 0;text-align:right;font-size:12px;font-weight:700;color:${SUB};border-bottom:1px solid ${BD};width:60px">×${it[1]}</td></tr>`).join('')}
+      </table>
+    </div>`;
+  }
+  if(config.incluirAire){
+    html += `<div style="padding:24px 40px 8px;page-break-inside:avoid">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div style="width:30px;height:1px;background:${A}"></div>
+        <div class="exec-font" style="font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:${P}">Aire acondicionado</div>
+        <div style="flex:1;height:1px;background:${BD}"></div>
+      </div>
+      <div style="padding:8px 0;font-size:12px;color:${TXT}">Aire acondicionado con instalación incluida</div>
+    </div>`;
+  }
+  html += `<div style="padding:24px 40px 32px;border-top:1px solid ${BD};margin-top:20px;text-align:center">
+    <div style="width:40px;height:1px;background:${A};margin:0 auto 12px"></div>
+    <div class="exec-font" style="font-size:14px;font-weight:700;color:${P};letter-spacing:.02em">Domus Rentals</div>
+    <div style="font-size:10px;color:${SUB};letter-spacing:.12em;text-transform:uppercase;margin-top:4px">Renta Corta · Administración Integral</div>
+    <div style="font-size:10px;color:${SUB};margin-top:8px;font-style:italic">Cotización generada el ${new Date().toLocaleDateString('es-CL')}</div>
+  </div></div>`;
+  c.innerHTML = html;
+};
+
+// Copiar con Cyber + items + para quién
+copiarCotizacionCliente = function(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  const t = cliCalcTotal();
+  const estiloSel = window.ESTILOS.find(e => e.id === config.estilo);
+  const adicLista = window.ADIC_POR_TPL_LISTA[tplKey] || 521745;
+  const adicDscto = window.ADIC_POR_TPL[tplKey] || 408240;
+  const itemsDescNombres = getItemsDesmarcadosNombres(tplKey);
+  const cyberNivel = config.descuentoNivel || 0;
+  let texto = `*DOMUS RENTALS*\n*Cotización ${tpl.label}*\n_Estilo: ${estiloSel.label.replace(/[^\w\s]/g,'').trim()}_\n`;
+  if(config.paraQuien) texto += `_Para: ${config.paraQuien}_\n`;
+  texto += `\n`;
+  if(config.incluirAmoblado){
+    tpl.sectores.forEach((s, si) => {
+      const items = s.items.filter((it, ii) => !isItemDesmarcado(tplKey, si, ii));
+      if(!items.length) return;
+      texto += `*${s.nombre}*\n`;
+      items.forEach(it => { texto += `• ${it[0]} (×${it[1]})\n`; });
+      texto += `\n`;
+    });
+  }
+  if(config.incluirAdicionales){
+    texto += `*ADICIONALES*\n`;
+    window.AMOBLADOS_ADICIONALES.forEach(it => { texto += `• ${it[0]} (×${it[1]})\n`; });
+    texto += `\n`;
+  }
+  if(config.incluirAire) texto += `*Aire acondicionado incluido*\n\n`;
+  texto += `*RESUMEN:*\n`;
+  if(config.incluirAmoblado) texto += `• Amoblado: ${formatCLP(window.getAmobPriceDscto(tpl))}\n`;
+  if(itemsDescNombres.length){
+    texto += `• Items removidos:\n`;
+    itemsDescNombres.forEach(n => texto += `   - ${n}\n`);
+  }
+  if(config.incluirAdicionales) texto += `• Adicionales: ${formatCLP(adicDscto)} (lista: ${formatCLP(adicLista)})\n`;
+  if(config.incluirAire) texto += `• Aire acondicionado: ${formatCLP(window.AIRE_COSTO)}\n`;
+  if(cyberNivel > 0) texto += `• Descuento Cyber ${cyberNivel}% (válido hasta Mié 03 Junio 23:59): -${formatCLP(t.descCyberVal)}\n`;
+  texto += `• Subtotal: ${formatCLP(t.subConDscto)}\n`;
+  if(config.conIva) texto += `• IVA (19%): ${formatCLP(t.iva)}\n`;
+  texto += `\n*TOTAL: ${formatCLP(t.total)}*${config.conIva?' (con IVA)':''}\n`;
+  if(!config.conIva) texto += `\n_Valor no incluye IVA 19%_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(texto);
+  toast('📋 Cotización lista');
+};
 // Load from cloud on startup
 loadFromCloud();
 </script>
