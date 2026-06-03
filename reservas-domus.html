@@ -460,7 +460,12 @@ function calcEstadia(ci, co) {
   return 'Futura';
 }
 function calcNoches(ci, co) { return Math.round((new Date(co+'T00:00:00') - new Date(ci+'T00:00:00')) / 86400000); }
-function fmtFecha(iso) { return iso.split('-').reverse().join('-'); }
+function fmtFecha(iso) {
+  if (!iso) return '';
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const parts = iso.split('-');
+  return parseInt(parts[2]) + ' ' + meses[parseInt(parts[1])-1] + ' ' + parts[0];
+}
 function platColor(p) { return {Airbnb:'p-airbnb',Booking:'p-booking',Expedia:'p-expedia'}[p]||'p-otro'; }
 function misReservas() {
   if (usuarioActual.admin) return reservas;
