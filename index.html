@@ -6592,6 +6592,74 @@ cliCalcTotal = function(){
     }, 60);
   };
 })();
+  // ═══ V29: Desmarcar/marcar todos los items y adicionales ═══
+
+function desmarcarTodoAmoblado(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  if(!tpl) return;
+  const todos = [];
+  tpl.sectores.forEach(function(s, si){
+    s.items.forEach(function(it, ii){ todos.push(si + '-' + ii); });
+  });
+  window.cliConfig.itemsDesmarcados = window.cliConfig.itemsDesmarcados || {};
+  window.cliConfig.itemsDesmarcados[tplKey] = todos;
+  renderAmobladosClientes(document.getElementById('mc'));
+  toast('🚫 Todos los items desmarcados');
+}
+function restaurarTodoAmoblado(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  if(!window.cliConfig.itemsDesmarcados) return;
+  window.cliConfig.itemsDesmarcados[tplKey] = [];
+  renderAmobladosClientes(document.getElementById('mc'));
+  toast('✅ Todos los items restaurados');
+}
+function desmarcarTodoAdicionales(){
+  const todos = window.AMOBLADOS_ADICIONALES.map(function(_, i){ return i; });
+  window.cliConfig.adicionalesDesmarcados = todos;
+  renderAmobladosClientes(document.getElementById('mc'));
+  toast('🚫 Todos los adicionales desmarcados');
+}
+function restaurarTodoAdicionales(){
+  window.cliConfig.adicionalesDesmarcados = [];
+  renderAmobladosClientes(document.getElementById('mc'));
+  toast('✅ Todos los adicionales restaurados');
+}
+
+// Inyectar botones después del render
+(function(){
+  const __origRender_v29 = renderAmobladosClientes;
+  renderAmobladosClientes = function(c){
+    __origRender_v29(c);
+    setTimeout(function(){
+      try {
+        const controls = c.querySelector('.no-print');
+        if(!controls || controls.querySelector('.v29-acciones')) return;
+        const tplKey = window.AMOBLADOS_CLI_CURRENT;
+        const tpl = window.AMOBLADOS_TPL[tplKey];
+        if(!tpl) return;
+        const totalItemsAmob = tpl.sectores.reduce(function(s, sec){ return s + sec.items.length; }, 0);
+        const desmarcadosAmob = ((window.cliConfig.itemsDesmarcados || {})[tplKey] || []).length;
+        const todosDesmarcadosAmob = desmarcadosAmob >= totalItemsAmob;
+        const desmarcadosAdic = (window.cliConfig.adicionalesDesmarcados || []).length;
+        const totalAdic = window.AMOBLADOS_ADICIONALES.length;
+        const todosDesmarcadosAdic = desmarcadosAdic >= totalAdic;
+        const wrap = document.createElement('div');
+        wrap.className = 'v29-acciones';
+        wrap.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)';
+        wrap.innerHTML = `
+          <div style="width:100%;font-size:10px;color:var(--text2);font-weight:900;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">⚡ Acciones rápidas</div>
+          <button onclick="${todosDesmarcadosAmob?'restaurarTodoAmoblado()':'desmarcarTodoAmoblado()'}" style="padding:7px 12px;font-size:11px;border:2px solid ${todosDesmarcadosAmob?'var(--green)':'var(--red)'};background:${todosDesmarcadosAmob?'var(--green-l)':'var(--red-l)'};color:${todosDesmarcadosAmob?'var(--green-d)':'var(--red-d)'};border-radius:var(--rsm);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800">${todosDesmarcadosAmob?'✅ Restaurar todo el amoblado':'🚫 Desmarcar todos los items del amoblado'}</button>
+          ${window.cliConfig.incluirAdicionales?`<button onclick="${todosDesmarcadosAdic?'restaurarTodoAdicionales()':'desmarcarTodoAdicionales()'}" style="padding:7px 12px;font-size:11px;border:2px solid ${todosDesmarcadosAdic?'var(--green)':'var(--red)'};background:${todosDesmarcadosAdic?'var(--green-l)':'var(--red-l)'};color:${todosDesmarcadosAdic?'var(--green-d)':'var(--red-d)'};border-radius:var(--rsm);cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800">${todosDesmarcadosAdic?'✅ Restaurar todos los adicionales':'🚫 Desmarcar todos los adicionales'}</button>`:''}
+        `;
+        // Insertar antes del toggle del 5% (al final del panel)
+        const toggle5 = controls.querySelector('[onclick*="cycleDescuento"]')?.closest('div');
+        if(toggle5) toggle5.parentNode.insertBefore(wrap, toggle5);
+        else controls.appendChild(wrap);
+      } catch(e){ console.warn('V29 error:', e); }
+    }, 200);
+  };
+})();
 // Load from cloud on startup
 loadFromCloud();
 </script>
