@@ -6387,6 +6387,211 @@ cliCalcTotal = function(){
     }, 50);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V28: Adicionales desmarcables individualmente ════════
+// ═══════════════════════════════════════════════════════════
+
+window.cliConfig = window.cliConfig || {};
+if(!window.cliConfig.adicionalesDesmarcados) window.cliConfig.adicionalesDesmarcados = [];
+
+function toggleAdicional(idx){
+  const arr = window.cliConfig.adicionalesDesmarcados;
+  const i = arr.indexOf(idx);
+  if(i >= 0) arr.splice(i, 1); else arr.push(idx);
+  renderAmobladosClientes(document.getElementById('mc'));
+}
+function isAdicionalDesmarcado(idx){
+  return (window.cliConfig.adicionalesDesmarcados || []).includes(idx);
+}
+function calcAdicionalesDescuento(){
+  let descLista = 0, descDscto = 0;
+  (window.cliConfig.adicionalesDesmarcados || []).forEach(function(idx){
+    const it = window.AMOBLADOS_ADICIONALES[idx];
+    if(it){
+      descLista += it[3] || 0;
+      descDscto += it[4] || 0;
+    }
+  });
+  return {descLista: descLista, descDscto: descDscto};
+}
+
+// Sobrescribir cliCalcTotal para descontar adicionales desmarcados
+cliCalcTotal = function(){
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const config = window.cliConfig;
+  let subSinDscto = 0, subConDscto = 0;
+  let descItemsCon = 0, descItemsLista = 0;
+  if(config.incluirAmoblado){
+    subSinDscto += window.getAmobPriceFull(tpl);
+    subConDscto += window.getAmobPriceDscto(tpl);
+    const di = calcDescuentoPorItems(tplKey);
+    descItemsLista = di.descLista;
+    descItemsCon = di.descConDscto;
+    subSinDscto -= descItemsLista;
+    subConDscto -= descItemsCon;
+    if(subSinDscto < 0) subSinDscto = 0;
+    if(subConDscto < 0) subConDscto = 0;
+  }
+  // Extras (1 plaza opcionales)
+  if(typeof calcExtras === 'function'){
+    const ex = calcExtras();
+    subSinDscto += ex.lista;
+    subConDscto += ex.dscto;
+  }
+  // Adicionales con descuento por desmarcados
+  if(config.incluirAdicionales){
+    let adicLista = window.ADIC_POR_TPL_LISTA[tplKey] || 521745;
+    let adicDscto = window.ADIC_POR_TPL[tplKey] || 408240;
+    const adicDesc = calcAdicionalesDescuento();
+    adicLista -= adicDesc.descLista;
+    adicDscto -= adicDesc.descDscto;
+    if(adicLista < 0) adicLista = 0;
+    if(adicDscto < 0) adicDscto = 0;
+    subSinDscto += adicLista;
+    subConDscto += adicDscto;
+  }
+  if(config.incluirAire){
+    subSinDscto += window.AIRE_COSTO;
+    subConDscto += window.AIRE_COSTO;
+  }
+  const nivel = config.descuentoNivel || 0;
+  let descCyberVal = 0;
+  if(nivel > 0){
+    descCyberVal = Math.round(subConDscto * (nivel/100));
+    subConDscto -= descCyberVal;
+  }
+  const iva = config.conIva ? Math.round(subConDscto * 0.19) : 0;
+  return {
+    subSinDscto: subSinDscto,
+    subConDscto: subConDscto,
+    descCyberVal: descCyberVal,
+    descItemsCon: descItemsCon,
+    descItemsLista: descItemsLista,
+    extrasLista: (typeof calcExtras === 'function' ? calcExtras().lista : 0),
+    extrasDscto: (typeof calcExtras === 'function' ? calcExtras().dscto : 0),
+    adicDescCon: calcAdicionalesDescuento().descDscto,
+    descuentoCyberNivel: nivel,
+    descuentoAmob: subSinDscto - subConDscto - descCyberVal,
+    iva: iva,
+    total: subConDscto + iva,
+    ahorro: subSinDscto - subConDscto + descCyberVal
+  };
+};
+
+// Hook al render para agregar checkboxes a la sección ADICIONALES
+(function(){
+  const __origRender_v28 = renderAmobladosClientes;
+  renderAmobladosClientes = function(c){
+    __origRender_v28(c);
+    setTimeout(function(){
+      try {
+        if(!window.cliConfig.incluirAdicionales) return;
+        const cotPrint = c.querySelector('#cotizacion-print');
+        if(!cotPrint) return;
+        // Buscar la sección de ADICIONALES (tiene el título "Adicionales")
+        const headers = cotPrint.querySelectorAll('.exec-font');
+        let adicSection = null;
+        headers.forEach(function(h){
+          if(h.textContent.trim().toUpperCase() === 'ADICIONALES'){
+            adicSection = h.closest('div[style*="padding:24px 40px 8px"]');
+          }
+        });
+        if(!adicSection) return;
+        // Reemplazar la tabla con checkboxes
+        const table = adicSection.querySelector('table');
+        if(!table) return;
+        let newTableHTML = '';
+        window.AMOBLADOS_ADICIONALES.forEach(function(it, idx){
+          const des = isAdicionalDesmarcado(idx);
+          newTableHTML += `<tr class="${des?'item-desmarcado':''}">
+            <td class="item-checkbox-cell" style="width:30px;padding:8px 0;vertical-align:middle"><input type="checkbox" ${des?'':'checked'} onchange="toggleAdicional(${idx})" style="accent-color:#1a2b4a;width:14px;height:14px;cursor:pointer"></td>
+            <td class="item-nombre" style="padding:8px 12px 8px 0;font-size:12px;color:#1a1a1a;border-bottom:1px solid #e8e3d6">${it[0]}</td>
+            <td style="padding:8px 0;text-align:right;font-size:12px;font-weight:700;color:#8a8a8a;border-bottom:1px solid #e8e3d6;width:60px">×${it[1]}</td>
+          </tr>`;
+        });
+        table.innerHTML = newTableHTML;
+        // Mostrar aviso de items desmarcados si hay
+        const desmarcadosCount = (window.cliConfig.adicionalesDesmarcados || []).length;
+        if(desmarcadosCount > 0 && !adicSection.querySelector('.adic-warn')){
+          const nombres = (window.cliConfig.adicionalesDesmarcados || []).map(function(idx){
+            return window.AMOBLADOS_ADICIONALES[idx] ? window.AMOBLADOS_ADICIONALES[idx][0] : '';
+          }).filter(Boolean);
+          const warn = document.createElement('div');
+          warn.className = 'adic-warn no-print';
+          warn.style.cssText = 'margin-top:8px;padding:6px 10px;background:#fff5e6;border:1px solid #f0c97c;border-radius:4px;font-size:10px;color:#a16207;font-weight:700';
+          warn.innerHTML = '⚠️ ' + desmarcadosCount + ' adicional' + (desmarcadosCount>1?'es removidos':' removido') + ': ' + nombres.join(', ');
+          adicSection.appendChild(warn);
+        }
+      } catch(e){ console.warn('V28 adic error:', e); }
+    }, 120);
+  };
+})();
+
+// Hook a copiar para excluir adicionales desmarcados
+(function(){
+  const __origCopiar_v28 = copiarCotizacionCliente;
+  copiarCotizacionCliente = function(){
+    __origCopiar_v28();
+    setTimeout(function(){
+      // Regenerar texto incluyendo solo adicionales marcados
+      const tplKey = window.AMOBLADOS_CLI_CURRENT;
+      const tpl = window.AMOBLADOS_TPL[tplKey];
+      const config = window.cliConfig;
+      const t = cliCalcTotal();
+      const estiloSel = window.ESTILOS.find(function(e){ return e.id === config.estilo; });
+      const itemsDescNombres = (typeof getItemsDesmarcadosNombres === 'function') ? getItemsDesmarcadosNombres(tplKey) : [];
+      const cyberNivel = config.descuentoNivel || 0;
+      let texto = '*DOMUS RENTALS*\n*Cotización ' + tpl.label + '*\n_Estilo: ' + estiloSel.label.replace(/[^\w\s]/g,'').trim() + '_\n';
+      if(config.paraQuien) texto += '_Para: ' + config.paraQuien + '_\n';
+      texto += '\n';
+      if(config.incluirAmoblado){
+        tpl.sectores.forEach(function(s, si){
+          const items = s.items.filter(function(it, ii){ return !isItemDesmarcado(tplKey, si, ii); });
+          if(!items.length) return;
+          texto += '*' + s.nombre + '*\n';
+          items.forEach(function(it){ texto += '• ' + it[0] + ' (×' + it[1] + ')\n'; });
+          texto += '\n';
+        });
+      }
+      if((window.cliConfig.itemsExtras || []).length > 0){
+        texto += '*OPCIONALES (1 PLAZA)*\n';
+        window.cliConfig.itemsExtras.forEach(function(idx){
+          const it = window.AMOBLADOS_EXTRAS[idx];
+          if(it) texto += '• ' + it[0] + '\n';
+        });
+        texto += '\n';
+      }
+      if(config.incluirAdicionales){
+        const adicMarcados = window.AMOBLADOS_ADICIONALES.filter(function(it, idx){ return !isAdicionalDesmarcado(idx); });
+        if(adicMarcados.length){
+          texto += '*ADICIONALES*\n';
+          adicMarcados.forEach(function(it){ texto += '• ' + it[0] + ' (×' + it[1] + ')\n'; });
+          texto += '\n';
+        }
+      }
+      if(config.incluirAire) texto += '*Aire acondicionado incluido*\n\n';
+      texto += '*RESUMEN:*\n';
+      if(config.incluirAmoblado) texto += '• Amoblado: ' + formatCLP(window.getAmobPriceDscto(tpl)) + '\n';
+      if(itemsDescNombres.length){
+        texto += '• Items removidos:\n';
+        itemsDescNombres.forEach(function(n){ texto += '   - ' + n + '\n'; });
+      }
+      if(t.extrasDscto > 0) texto += '• Opcionales 1 plaza: ' + formatCLP(t.extrasDscto) + '\n';
+      if(config.incluirAdicionales){
+        const adicNeto = (window.ADIC_POR_TPL[tplKey] || 408240) - t.adicDescCon;
+        texto += '• Adicionales: ' + formatCLP(adicNeto) + '\n';
+      }
+      if(config.incluirAire) texto += '• Aire acondicionado: ' + formatCLP(window.AIRE_COSTO) + '\n';
+      if(cyberNivel > 0) texto += '• Descuento Cyber ' + cyberNivel + '% (válido hasta Mié 03 Junio 23:59): -' + formatCLP(t.descCyberVal) + '\n';
+      texto += '• Subtotal: ' + formatCLP(t.subConDscto) + '\n';
+      if(config.conIva) texto += '• IVA (19%): ' + formatCLP(t.iva) + '\n';
+      texto += '\n*TOTAL: ' + formatCLP(t.total) + '*' + (config.conIva?' (con IVA)':'') + '\n';
+      if(!config.conIva) texto += '\n_Valor no incluye IVA 19%_';
+      if(navigator.clipboard) navigator.clipboard.writeText(texto);
+    }, 60);
+  };
+})();
 // Load from cloud on startup
 loadFromCloud();
 </script>
