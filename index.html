@@ -6660,6 +6660,18 @@ function restaurarTodoAdicionales(){
     }, 200);
   };
 })();
+  // ═══ V31: Eliminar Opcionales 1 plaza ═══
+window.AMOBLADOS_EXTRAS = [];
+if(window.cliConfig) window.cliConfig.itemsExtras = [];
+// Re-render para refrescar
+setTimeout(function(){
+  if(typeof renderAmobladosClientes === 'function' && document.getElementById('mc')){
+    // Solo re-render si está en la vista clientes
+    if(currentView === 'amoblados-clientes') renderAmobladosClientes(document.getElementById('mc'));
+  }
+  // También limpiar cualquier panel residual
+  document.querySelectorAll('.extras-panel, .extras-line, .section-extras').forEach(function(el){ el.remove(); });
+}, 800);
 // Load from cloud on startup
 loadFromCloud();
 </script>
