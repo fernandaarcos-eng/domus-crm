@@ -7017,6 +7017,84 @@ window.eliminarCotizacionDelPerfil = function(leadId, cotIdx){
     }, 280);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V36: Tabs del depto integradas en el perfil ══════════
+// ═══════════════════════════════════════════════════════════
+
+// Renderizar el contenido del depto (las tabs) en la página principal
+window.mostrarDeptoEnPerfil = function(leadId){
+  const lead = leads.find(function(x){ return x.id === leadId; });
+  if(!lead) return;
+  selectedId = leadId;
+  currentView = 'depto-en-perfil';
+  window.perfilDeptoId = leadId;
+  
+  // Llamar a renderModal para generar el contenido (crea overlay)
+  if(typeof renderModal === 'function') renderModal();
+  
+  // Esperar a que los hooks de otras versiones modifiquen el modal (V18, V22, V28...)
+  setTimeout(function(){
+    const ov = document.getElementById('crm-ov');
+    if(!ov){ return; }
+    const modal = ov.querySelector('.modal');
+    if(!modal){ ov.remove(); return; }
+    
+    // Capturar header y body del modal
+    const mhd = modal.querySelector('.mhd');
+    const mbody = modal.querySelector('.mbody');
+    if(!mbody){ ov.remove(); return; }
+    
+    // Quitar el botón ✕ del header
+    if(mhd){
+      const closeBtn = mhd.querySelector('[onclick="closeModal()"]');
+      if(closeBtn) closeBtn.remove();
+    }
+    
+    const headerHTML = mhd ? mhd.innerHTML : '';
+    const bodyHTML = mbody.outerHTML;
+    
+    // Eliminar el overlay temporal
+    ov.remove();
+    
+    // Construir vista en pantalla principal
+    const cliente = leads.find(function(x){ return x.id === leadId; });
+    const tituloVista = '🏠 ' + (cliente.address || cliente.name);
+    if(document.getElementById('vtitle')) document.getElementById('vtitle').textContent = tituloVista;
+    
+    const mc = document.getElementById('mc');
+    mc.innerHTML = `
+      <button onclick="volverAlPerfilCliente()" style="background:var(--surface);border:2px solid var(--border2);color:var(--text);font-size:12px;cursor:pointer;padding:7px 14px;margin-bottom:14px;font-weight:700;border-radius:var(--rsm);font-family:'Nunito',sans-serif">← Volver al perfil del cliente</button>
+      <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden">
+        <div style="padding:18px 22px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--surface)">
+          ${headerHTML}
+        </div>
+        ${bodyHTML}
+      </div>
+    `;
+    
+    // Estilizar el modal embebido para que ocupe todo el ancho
+    const embedBody = mc.querySelector('.mbody');
+    if(embedBody){
+      embedBody.style.padding = '24px 28px';
+    }
+  }, 350);
+};
+
+window.volverAlPerfilCliente = function(){
+  const leadId = window.perfilDeptoId || window.perfilCurrentLeadId;
+  if(leadId && typeof showClientePerfil === 'function'){
+    showClientePerfil(leadId);
+  } else {
+    if(typeof showView === 'function') showView('pipeline', null);
+  }
+};
+
+// Reemplazar openModalDeptoFromPerfil para usar la nueva vista integrada
+window.openModalDeptoFromPerfil = function(id){
+  selectedId = id;
+  window.perfilCurrentLeadId = id;
+  window.mostrarDeptoEnPerfil(id);
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
