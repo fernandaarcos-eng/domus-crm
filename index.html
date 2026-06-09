@@ -7407,6 +7407,165 @@ renderResumen = function(c){
   }
   c.innerHTML = html;
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ V40: Pagos realizados para clientes admin+amob ═══════
+// ═══════════════════════════════════════════════════════════
+
+window.togglePagoAmob = function(leadId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  l.pago_amob = l.pago_amob || {};
+  l.pago_amob.realizado = !l.pago_amob.realizado;
+  if(l.pago_amob.realizado && !l.pago_amob.fecha){
+    l.pago_amob.fecha = new Date().toISOString().split('T')[0];
+  }
+  saveData();
+  if(typeof window.logAction === 'function'){
+    window.logAction(leadId, l.pago_amob.realizado ? '💰 Marcó pago de amoblado como REALIZADO' : '↩️ Desmarcó pago de amoblado');
+  }
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+    renderClientePerfil(window.perfilCurrentLeadId);
+  }
+};
+
+window.uploadComprobantePago = function(leadId, input){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !input.files[0]) return;
+  const file = input.files[0];
+  if(file.size > 5*1024*1024){ toast('⚠️ Archivo muy pesado (máx 5MB)'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    l.pago_amob = l.pago_amob || {};
+    l.pago_amob.comprobante = e.target.result;
+    l.pago_amob.comprobante_nombre = file.name;
+    l.pago_amob.comprobante_tipo = file.type;
+    if(!l.pago_amob.fecha) l.pago_amob.fecha = new Date().toISOString().split('T')[0];
+    saveData();
+    if(typeof window.logAction === 'function'){
+      window.logAction(leadId, '📎 Subió comprobante de pago: ' + file.name);
+    }
+    if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+      renderClientePerfil(window.perfilCurrentLeadId);
+    }
+    toast('💾 Comprobante guardado');
+  };
+  reader.readAsDataURL(file);
+};
+
+window.updPagoCampo = function(leadId, campo, val){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  l.pago_amob = l.pago_amob || {};
+  l.pago_amob[campo] = val;
+  saveData();
+};
+
+window.eliminarComprobantePago = function(leadId){
+  if(!confirm('¿Borrar el comprobante de pago?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !l.pago_amob) return;
+  delete l.pago_amob.comprobante;
+  delete l.pago_amob.comprobante_nombre;
+  delete l.pago_amob.comprobante_tipo;
+  saveData();
+  if(typeof window.logAction === 'function'){
+    window.logAction(leadId, '🗑️ Eliminó comprobante de pago');
+  }
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+    renderClientePerfil(window.perfilCurrentLeadId);
+  }
+  toast('🗑️ Comprobante eliminado');
+};
+
+// Hook al perfil del cliente
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __origRender_v40 = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __origRender_v40(currentId);
+    setTimeout(function(){
+      try {
+        const cliente = leads.find(function(x){ return x.id === currentId; });
+        if(!cliente) return;
+        const key = (typeof getClienteKey === 'function') ? getClienteKey(cliente) : '';
+        const deptos = (typeof getDeptosCliente === 'function') ? getDeptosCliente(key) : [cliente];
+        const deptosAA = deptos.filter(function(l){ return l.tipo_contrato === 'admin_amob'; });
+        if(!deptosAA.length) return;
+        const mc = document.getElementById('mc');
+        if(!mc || mc.querySelector('.section-pagos-amob')) return;
+        const pagados = deptosAA.filter(function(l){ return l.pago_amob && l.pago_amob.realizado; }).length;
+        const pendientes = deptosAA.length - pagados;
+        const section = document.createElement('div');
+        section.className = 'section-pagos-amob';
+        section.style.cssText = 'margin-top:16px';
+        let html = `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">💰 Pagos del amoblado (${deptosAA.length})</div>
+            <div style="display:flex;gap:6px">
+              ${pagados>0?`<span style="font-size:10px;font-weight:800;background:var(--green-l);color:var(--green-d);padding:3px 9px;border-radius:20px">✅ ${pagados} pagado${pagados>1?'s':''}</span>`:''}
+              ${pendientes>0?`<span style="font-size:10px;font-weight:800;background:var(--amber-l);color:var(--amber-d);padding:3px 9px;border-radius:20px">⚠️ ${pendientes} pendiente${pendientes>1?'s':''}</span>`:''}
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+        `;
+        deptosAA.forEach(function(d){
+          const pago = d.pago_amob || {};
+          const pagado = !!pago.realizado;
+          html += `
+            <div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ${pagado?'var(--green)':'var(--amber)'};border-radius:var(--rsm);padding:14px 16px">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <div style="flex:1;min-width:0">
+                  <div class="N" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${d.address || 'Sin dirección'}</div>
+                  <div style="font-size:11px;color:var(--text2)">${d.comuna || ''}</div>
+                </div>
+                <span style="font-size:11px;font-weight:800;background:${pagado?'var(--green-l)':'var(--amber-l)'};color:${pagado?'var(--green-d)':'var(--amber-d)'};padding:4px 10px;border-radius:20px;flex-shrink:0">${pagado?'✅ Pagado':'⚠️ Pendiente'}</span>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;font-weight:700">
+                  <input type="checkbox" ${pagado?'checked':''} onchange="togglePagoAmob(${d.id})" style="accent-color:var(--green);width:16px;height:16px">
+                  Pago realizado
+                </label>
+                <input type="date" value="${pago.fecha||''}" onchange="updPagoCampo(${d.id},'fecha',this.value)" style="padding:6px 10px;font-size:11px;border:1px solid var(--border2);border-radius:6px;font-family:inherit">
+                <input type="number" value="${pago.monto||''}" placeholder="Monto $" onchange="updPagoCampo(${d.id},'monto',this.value)" style="padding:6px 10px;font-size:11px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;width:140px">
+              </div>
+              ${pago.comprobante ? `
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg);border-radius:6px">
+                  ${(pago.comprobante_tipo||'').includes('image') ?
+                    `<img src="${pago.comprobante}" style="width:64px;height:64px;object-fit:cover;border-radius:6px;cursor:pointer;border:1px solid var(--border)" onclick="openLightbox('${pago.comprobante}')">` :
+                    `<div style="width:64px;height:64px;background:var(--purple-l);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:28px;color:var(--purple-d)">📄</div>`
+                  }
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${pago.comprobante_nombre || 'comprobante'}</div>
+                    <div style="display:flex;gap:8px;margin-top:4px">
+                      <a href="${pago.comprobante}" download="${pago.comprobante_nombre||'comprobante'}" style="font-size:10px;color:var(--blue-d);font-weight:700;text-decoration:none">↓ Descargar</a>
+                      <a href="${pago.comprobante}" target="_blank" style="font-size:10px;color:var(--blue-d);font-weight:700;text-decoration:none">↗ Abrir</a>
+                    </div>
+                  </div>
+                  <button onclick="eliminarComprobantePago(${d.id})" style="background:none;border:2px solid var(--border2);color:var(--red);cursor:pointer;padding:6px 10px;border-radius:6px;font-size:13px">🗑️</button>
+                </div>
+              ` : `
+                <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:8px 14px;background:var(--blue-l);border:2px dashed var(--blue);color:var(--blue-d);border-radius:var(--rsm);font-size:11px;font-weight:700">
+                  <i class="ti ti-upload"></i>📎 Subir comprobante de pago
+                  <input type="file" accept="image/*,.pdf" style="display:none" onchange="uploadComprobantePago(${d.id},this)">
+                </label>
+              `}
+              <textarea placeholder="Notas del pago (opcional)..." onchange="updPagoCampo(${d.id},'notas',this.value)" style="width:100%;font-size:11px;padding:8px 10px;border:1px solid var(--border2);border-radius:6px;font-family:inherit;resize:vertical;min-height:42px;margin-top:8px">${pago.notas||''}</textarea>
+            </div>
+          `;
+        });
+        html += '</div>';
+        section.innerHTML = html;
+        // Insertar antes de la sección de cotizaciones si existe, o al final
+        const cotizSection = mc.querySelector('.section-cotizaciones');
+        if(cotizSection){
+          mc.insertBefore(section, cotizSection);
+        } else {
+          mc.appendChild(section);
+        }
+      } catch(e){ console.warn('V40 pagos error:', e); }
+    }, 320);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
