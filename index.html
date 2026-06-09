@@ -6673,6 +6673,136 @@ setTimeout(function(){
   document.querySelectorAll('.extras-panel, .extras-line, .section-extras').forEach(function(el){ el.remove(); });
 }, 800);
 // Load from cloud on startup
+  // ═══════════════════════════════════════════════════════════
+// ═══ V32: Perfil de cliente en hoja completa ═══════════════
+// ═══════════════════════════════════════════════════════════
+
+function getClienteKey(l){
+  return (l && l.email && l.email.trim()) ? l.email.toLowerCase().trim() : ((l && l.name) || '').toLowerCase().trim();
+}
+function getDeptosCliente(key){
+  return leads.filter(function(l){ return getClienteKey(l) === key; }).sort(function(a,b){ return a.id - b.id; });
+}
+
+window.perfilCurrentLeadId = null;
+
+function showClientePerfil(id){
+  const l = leads.find(function(x){ return x.id === id; });
+  if(!l) return;
+  window.perfilCurrentLeadId = id;
+  selectedId = id;
+  currentView = 'cliente-perfil';
+  document.getElementById('vtitle').textContent = '👤 ' + l.name;
+  renderClientePerfil(id);
+}
+
+function renderClientePerfil(currentId){
+  const cliente = leads.find(function(x){ return x.id === currentId; });
+  if(!cliente) return;
+  const key = getClienteKey(cliente);
+  const deptos = getDeptosCliente(key);
+  const c = document.getElementById('mc');
+  const initials = (cliente.name||'').split(' ').map(function(x){ return x[0]; }).join('').slice(0,2).toUpperCase();
+  let html = `
+    <button onclick="cerrarPerfilCliente()" style="background:var(--surface);border:2px solid var(--border2);color:var(--text);font-size:12px;cursor:pointer;padding:7px 14px;margin-bottom:14px;font-weight:700;border-radius:var(--rsm);font-family:'Nunito',sans-serif">← Volver al Pipeline</button>
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:24px 28px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:18px">
+        <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--blue));color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;font-family:'Nunito',sans-serif;flex-shrink:0">${initials}</div>
+        <div style="flex:1;min-width:0">
+          <div class="N" style="font-size:24px;font-weight:900;letter-spacing:-.02em">${cliente.name||'Sin nombre'}</div>
+          <div style="font-size:13px;color:var(--text2);margin-top:4px">
+            ${cliente.email ? '📧 ' + cliente.email : '<span style="color:var(--text3);font-style:italic">Sin email</span>'}
+            <span style="margin:0 8px;color:var(--text3)">·</span>
+            ${cliente.phone ? '📞 ' + cliente.phone : '<span style="color:var(--text3);font-style:italic">Sin teléfono</span>'}
+          </div>
+          ${cliente.origen ? `<div style="font-size:11px;color:var(--text2);margin-top:5px">🔍 ${cliente.origen}</div>` : ''}
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div class="N" style="font-size:36px;font-weight:900;color:var(--purple-d);line-height:1">${deptos.length}</div>
+          <div style="font-size:11px;color:var(--text2);font-weight:700;margin-top:2px">depto${deptos.length>1?'s':''}</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:18px 22px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">📋 Datos personales</div>
+        <span style="font-size:9px;color:var(--text3);font-style:italic">Los cambios se aplican a TODOS sus departamentos</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="field"><label>Nombre completo</label>
+          <input value="${(cliente.name||'').replace(/"/g,'&quot;')}" onchange="updClienteCompleto('${key}','name',this.value)">
+        </div>
+        <div class="field"><label>Origen</label>
+          <input value="${(cliente.origen||'').replace(/"/g,'&quot;')}" onchange="updClienteCompleto('${key}','origen',this.value)">
+        </div>
+        <div class="field"><label>📧 Email</label>
+          <input value="${(cliente.email||'').replace(/"/g,'&quot;')}" onchange="updClienteCompleto('${key}','email',this.value)">
+        </div>
+        <div class="field"><label>📞 Teléfono</label>
+          <input value="${(cliente.phone||'').replace(/"/g,'&quot;')}" onchange="updClienteCompleto('${key}','phone',this.value)">
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">🏠 Departamentos del cliente (${deptos.length})</div>
+      <span style="font-size:10px;color:var(--text3);font-style:italic">Click en una card para ver detalle completo</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px">
+      ${deptos.map(function(d){
+        const p = pct(d);
+        const st = stageInfo(d.stage);
+        const isCurrent = d.id === currentId;
+        const probs = (typeof problemasLead === 'function') ? problemasLead(d) : [];
+        return `<div onclick="openModalDeptoFromPerfil(${d.id})" style="background:var(--surface);border:2px solid ${isCurrent?'var(--purple)':'var(--border)'};${isCurrent?'box-shadow:0 0 0 3px rgba(124,58,237,.1);':''}border-radius:var(--r);padding:14px 16px;cursor:pointer;transition:all .13s" onmouseover="this.style.transform='translateY(-2px)';this.style.borderColor='var(--purple)';this.style.boxShadow='0 6px 18px rgba(100,60,220,.12)'" onmouseout="this.style.transform='';this.style.borderColor='${isCurrent?'var(--purple)':'var(--border)'}';this.style.boxShadow='${isCurrent?'0 0 0 3px rgba(124,58,237,.1)':'none'}'">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:9px;font-weight:800;background:${st.bg};color:${st.color};padding:3px 9px;border-radius:20px">${st.emoji} ${st.label}</span>
+            <span class="N" style="font-size:13px;font-weight:900;color:${pctColor(p)}">${p}%</span>
+          </div>
+          <div class="N" style="font-size:13px;font-weight:800;margin-bottom:4px">${d.address || '<em style="color:#dc2626;font-style:italic">Sin dirección</em>'}</div>
+          <div style="font-size:11px;color:var(--text2)">${d.comuna || '—'}${d.tipo_contrato ? ' · ' + (d.tipo_contrato === 'admin_amob' ? '🛋️ Adm.+Amob.' : '🏠 Solo Adm.') : ''}</div>
+          ${d.mes_asignado && typeof formatMes==='function' ? `<div style="font-size:10px;color:var(--text2);margin-top:5px">📅 ${formatMes(d.mes_asignado)}</div>` : ''}
+          ${probs.length ? `<div style="font-size:10px;color:var(--red-d);background:var(--red-l);padding:3px 8px;border-radius:20px;display:inline-block;margin-top:6px;font-weight:700">⚠️ ${probs.join(', ')}</div>` : ''}
+          <div style="font-size:10px;color:var(--purple);font-weight:800;margin-top:8px;display:flex;align-items:center;gap:4px">→ Ver detalle completo</div>
+        </div>`;
+      }).join('')}
+    </div>
+  `;
+  c.innerHTML = html;
+}
+
+window.openModalDeptoFromPerfil = function(id){
+  selectedId = id;
+  window.perfilCurrentLeadId = id;
+  if(typeof __origOpenLead_v32 === 'function') __origOpenLead_v32(id);
+  else if(typeof __origOpenLead === 'function') __origOpenLead(id);
+};
+
+window.cerrarPerfilCliente = function(){
+  selectedId = null;
+  window.perfilCurrentLeadId = null;
+  showView('pipeline', null);
+};
+
+window.updClienteCompleto = function(key, field, val){
+  const deptos = getDeptosCliente(key);
+  deptos.forEach(function(l){
+    const old = l[field];
+    l[field] = val;
+    if(typeof window.logAction === 'function' && old !== val){
+      window.logAction(l.id, 'Cambió ' + field + ' del cliente: "' + (old||'') + '" → "' + val + '"');
+    }
+  });
+  saveData();
+  setTimeout(function(){
+    if(window.perfilCurrentLeadId) renderClientePerfil(window.perfilCurrentLeadId);
+  }, 100);
+};
+
+// Interceptar openLead: ahora abre el perfil
+window.__origOpenLead_v32 = openLead;
+openLead = function(id){
+  showClientePerfil(id);
+};
 loadFromCloud();
 </script>
 
