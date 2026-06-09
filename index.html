@@ -7169,6 +7169,32 @@ window.openModalDeptoFromPerfil = function(id){
   window.perfilCurrentLeadId = id;
   window.mostrarDeptoEnPerfil(id);
 };
+  // ═══ V38: Forzar openModalDeptoFromPerfil tardíamente ═══
+
+// Esperar a que todos los hooks se apliquen, después redefinir
+function forzarOpenModalDeptoV38(){
+  window.openModalDeptoFromPerfil = function(id){
+    selectedId = id;
+    window.perfilCurrentLeadId = id;
+    if(typeof window.mostrarDeptoEnPerfil === 'function'){
+      window.mostrarDeptoEnPerfil(id);
+    } else {
+      console.warn('V38: mostrarDeptoEnPerfil no existe');
+    }
+  };
+}
+// Aplicar varias veces para asegurar
+setTimeout(forzarOpenModalDeptoV38, 1500);
+setTimeout(forzarOpenModalDeptoV38, 3500);
+setTimeout(forzarOpenModalDeptoV38, 6000);
+// También cada vez que se renderiza el perfil
+if(typeof renderClientePerfil === 'function'){
+  const __origRenderPerfil_v38 = renderClientePerfil;
+  renderClientePerfil = function(id){
+    __origRenderPerfil_v38(id);
+    setTimeout(forzarOpenModalDeptoV38, 50);
+  };
+}
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
