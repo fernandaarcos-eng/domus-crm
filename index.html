@@ -6672,6 +6672,152 @@ setTimeout(function(){
   // También limpiar cualquier panel residual
   document.querySelectorAll('.extras-panel, .extras-line, .section-extras').forEach(function(el){ el.remove(); });
 }, 800);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V34: Agendar reunión Google Meet ══════════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.agendarReunionMeet = function(leadId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  if(!l.email || !l.email.includes('@')){
+    if(!confirm('Este cliente no tiene email registrado. Continuar igual? (No se enviará invitación automática)')) return;
+  }
+  showModalReunionMeet(l);
+};
+
+function showModalReunionMeet(l){
+  const ex = document.getElementById('reunion-meet-ov');
+  if(ex) ex.remove();
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 86400000);
+  const defaultDate = tomorrow.toISOString().split('T')[0];
+  const ov = document.createElement('div');
+  ov.id = 'reunion-meet-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:24px 26px;width:440px;max-width:92vw;font-family:'Nunito Sans',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <div style="width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#4285F4,#34A853);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0">📹</div>
+        <div style="flex:1;min-width:0">
+          <div class="N" style="font-size:16px;font-weight:900">Agendar reunión Google Meet</div>
+          <div style="font-size:11px;color:#6a6080;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.name}${l.email?' · '+l.email:' · sin email'}</div>
+        </div>
+        <button onclick="document.getElementById('reunion-meet-ov').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#999;padding:0 4px">✕</button>
+      </div>
+      <div class="field">
+        <label>📝 Título</label>
+        <input id="meet-titulo" value="Reunión Domus Rentals - ${(l.name||'').replace(/"/g,'&quot;')}">
+      </div>
+      <div class="frow">
+        <div class="field">
+          <label>📅 Fecha</label>
+          <input id="meet-fecha" type="date" value="${defaultDate}">
+        </div>
+        <div class="field">
+          <label>🕐 Hora inicio</label>
+          <input id="meet-hora" type="time" value="10:00">
+        </div>
+      </div>
+      <div class="field">
+        <label>⏱️ Duración</label>
+        <select id="meet-duracion">
+          <option value="30">30 minutos</option>
+          <option value="45">45 minutos</option>
+          <option value="60" selected>1 hora</option>
+          <option value="90">1 hora 30 min</option>
+          <option value="120">2 horas</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>💬 Notas (opcional)</label>
+        <textarea id="meet-notas" rows="3" placeholder="Información adicional para el cliente..."></textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:space-between;margin-top:18px;align-items:center">
+        <div style="font-size:10px;color:#999;font-style:italic">Se abre Google Calendar para confirmar</div>
+        <div style="display:flex;gap:8px">
+          <button onclick="document.getElementById('reunion-meet-ov').remove()" class="btn">Cancelar</button>
+          <button onclick="crearEventoMeet(${l.id})" class="btn btn-p">📅 Crear evento</button>
+        </div>
+      </div>
+    </div>
+  `;
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(function(){ const t = document.getElementById('meet-titulo'); if(t) t.focus(); }, 100);
+}
+
+window.crearEventoMeet = function(leadId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const titulo = (document.getElementById('meet-titulo').value || 'Reunión Domus Rentals').trim();
+  const fecha = document.getElementById('meet-fecha').value;
+  const hora = document.getElementById('meet-hora').value;
+  const duracion = parseInt(document.getElementById('meet-duracion').value);
+  const notas = document.getElementById('meet-notas').value;
+  if(!fecha || !hora){ alert('Selecciona fecha y hora'); return; }
+  const startDT = new Date(fecha + 'T' + hora + ':00');
+  const endDT = new Date(startDT.getTime() + duracion * 60000);
+  function formatGCal(d){
+    return d.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+  }
+  const startStr = formatGCal(startDT);
+  const endStr = formatGCal(endDT);
+  let detalles = notas || '';
+  if(l.phone) detalles += (detalles?'\n\n':'') + 'Teléfono: ' + l.phone;
+  if(l.address) detalles += '\nDepartamento: ' + l.address;
+  if(l.comuna) detalles += ', ' + l.comuna;
+  detalles += '\n\n--\nGestionado por Domus Rentals';
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: titulo,
+    dates: startStr + '/' + endStr,
+    details: detalles,
+    location: 'Google Meet'
+  });
+  let url = 'https://calendar.google.com/calendar/render?' + params.toString();
+  if(l.email && l.email.includes('@')) url += '&add=' + encodeURIComponent(l.email);
+  window.open(url, '_blank');
+  document.getElementById('reunion-meet-ov').remove();
+  // Log
+  if(typeof window.logAction === 'function'){
+    const fechaStr = new Date(fecha + 'T' + hora).toLocaleString('es-CL', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    window.logAction(leadId, '📹 Agendó reunión Meet: ' + fechaStr);
+  }
+  // Sugerir cambio de etapa
+  if(l.stage === 'prospecto'){
+    setTimeout(function(){
+      if(confirm('¿Mover ' + l.name + ' a la etapa "Reunión agendada"?')){
+        if(typeof changeStage === 'function') changeStage(leadId, 'reunion_agendada');
+      }
+    }, 600);
+  }
+  if(typeof toast === 'function') toast('📅 Evento abierto en Google Calendar');
+};
+
+// Inyectar botón en el header del perfil del cliente
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __origRenderPerfil = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __origRenderPerfil(currentId);
+    setTimeout(function(){
+      try {
+        if(document.querySelector('.btn-meet')) return;
+        const mc = document.getElementById('mc');
+        if(!mc) return;
+        // Buscar el header del cliente (el div grande con avatar)
+        const header = mc.querySelector('div[style*="display:flex"][style*="align-items:center"][style*="gap:18px"]');
+        if(!header) return;
+        const containerHeader = header.parentNode;
+        // Crear botón
+        const btnWrap = document.createElement('div');
+        btnWrap.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px';
+        btnWrap.innerHTML = `<button class="btn-meet btn btn-p" onclick="agendarReunionMeet(${currentId})" style="padding:9px 16px"><i class="ti ti-calendar-plus"></i>📅 Agendar reunión Google Meet</button>`;
+        containerHeader.appendChild(btnWrap);
+      } catch(e){ console.warn('V34 btn error:', e); }
+    }, 150);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
