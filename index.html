@@ -6673,6 +6673,17 @@ setTimeout(function(){
   document.querySelectorAll('.extras-panel, .extras-line, .section-extras').forEach(function(el){ el.remove(); });
 }, 800);
 // Load from cloud on startup
+    // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
+
+// Eliminar el panel de alertas
+renderAlertas = function(){ return ''; };
+
+// Ordenar leads por ID descendente (más recientes primero)
+const __origFilteredLeads_v33 = filteredLeads;
+filteredLeads = function(){
+  const res = __origFilteredLeads_v33();
+  return res.slice().sort(function(a, b){ return b.id - a.id; });
+};
   // ═══════════════════════════════════════════════════════════
 // ═══ V32: Perfil de cliente en hoja completa ═══════════════
 // ═══════════════════════════════════════════════════════════
