@@ -6818,6 +6818,205 @@ window.crearEventoMeet = function(leadId){
     }, 150);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V35: Cotizaciones anexadas al perfil ══════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.cliConfig = window.cliConfig || {};
+if(window.cliConfig.paraEmail === undefined) window.cliConfig.paraEmail = '';
+
+window.updParaEmail = function(val){ window.cliConfig.paraEmail = (val||'').trim(); };
+
+window.guardarCotizacionEnPerfil = function(){
+  const config = window.cliConfig;
+  const tplKey = window.AMOBLADOS_CLI_CURRENT;
+  const tpl = window.AMOBLADOS_TPL[tplKey];
+  const t = cliCalcTotal();
+  const paraNombre = (config.paraQuien || '').trim();
+  const paraEmail = (config.paraEmail || '').trim();
+  if(!paraNombre && !paraEmail){
+    alert('Ingresa al menos el nombre o email del cliente para guardar la cotización.');
+    return;
+  }
+  let lead = null;
+  if(paraEmail){
+    lead = leads.find(function(l){ return l.email && l.email.toLowerCase().trim() === paraEmail.toLowerCase().trim(); });
+  }
+  if(!lead && paraNombre){
+    lead = leads.find(function(l){ return l.name && l.name.toLowerCase().trim() === paraNombre.toLowerCase().trim(); });
+  }
+  if(!lead){
+    if(!confirm('No se encontró un cliente con email "' + paraEmail + '"' + (paraNombre ? ' o nombre "' + paraNombre + '"' : '') + '.\n\n¿Crear nuevo prospecto con estos datos y guardar la cotización ahí?')){
+      return;
+    }
+    const nuevoId = (typeof nextId !== 'undefined' ? nextId++ : Date.now());
+    lead = {
+      id: nuevoId,
+      name: paraNombre || 'Cliente (cotización)',
+      email: paraEmail || '',
+      phone: '',
+      address: '',
+      comuna: '',
+      stage: 'prospecto',
+      tipo_contrato: null,
+      origen: 'Cotización',
+      checks: (typeof defaultChecks === 'function' ? defaultChecks('prospecto') : []),
+      history: ['Creado al guardar cotización'],
+      historyDates: [new Date().toLocaleDateString('es-CL')],
+      historyUsers: [(typeof window.getCurrentUser === 'function' ? window.getCurrentUser() : 'sistema')],
+      mes_asignado: (typeof currentMonthValue === 'function' ? currentMonthValue() : null),
+      cotizaciones: []
+    };
+    leads.push(lead);
+    if(typeof window.logAction === 'function') window.logAction(lead.id, '🆕 Creó cliente al guardar cotización');
+  }
+  const cotizacion = {
+    id: Date.now(),
+    fecha: new Date().toISOString(),
+    fechaStr: new Date().toLocaleString('es-CL', {day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'}),
+    paraNombre: paraNombre,
+    paraEmail: paraEmail,
+    tipologia: tplKey,
+    tipologiaLabel: tpl.label,
+    estilo: config.estilo,
+    config: {
+      incluirAmoblado: !!config.incluirAmoblado,
+      incluirAdicionales: !!config.incluirAdicionales,
+      incluirAire: !!config.incluirAire,
+      conIva: !!config.conIva,
+      descuentoNivel: config.descuentoNivel || 0,
+      itemsDesmarcados: JSON.parse(JSON.stringify(config.itemsDesmarcados || {})),
+      adicionalesDesmarcados: (config.adicionalesDesmarcados || []).slice()
+    },
+    total: t.total,
+    subtotal: t.subConDscto,
+    ahorro: t.ahorro,
+    usuarioCreador: (typeof window.getCurrentUser === 'function' ? window.getCurrentUser() : 'desconocido')
+  };
+  lead.cotizaciones = lead.cotizaciones || [];
+  lead.cotizaciones.push(cotizacion);
+  saveData();
+  if(typeof window.logAction === 'function'){
+    window.logAction(lead.id, '💾 Cotización guardada: ' + tpl.label + ' · Total ' + formatCLP(t.total));
+  }
+  if(typeof toast === 'function') toast('💾 Cotización guardada en ' + lead.name);
+  setTimeout(function(){
+    if(confirm('Cotización guardada en perfil de ' + lead.name + '.\n\n¿Abrir su perfil ahora?')){
+      if(typeof showClientePerfil === 'function') showClientePerfil(lead.id);
+    }
+  }, 600);
+};
+
+window.cargarCotizacionDelPerfil = function(leadId, cotIdx){
+  const lead = leads.find(function(l){ return l.id === leadId; });
+  if(!lead || !lead.cotizaciones || !lead.cotizaciones[cotIdx]) return;
+  const cot = lead.cotizaciones[cotIdx];
+  window.cliConfig.paraQuien = cot.paraNombre || '';
+  window.cliConfig.paraEmail = cot.paraEmail || '';
+  window.cliConfig.estilo = cot.estilo || 'nordico';
+  Object.assign(window.cliConfig, cot.config || {});
+  window.AMOBLADOS_CLI_CURRENT = cot.tipologia || 'studio';
+  if(typeof showView === 'function') showView('amoblados-clientes', null);
+  if(typeof toast === 'function') toast('🔄 Cotización cargada en Vista Clientes');
+};
+
+window.eliminarCotizacionDelPerfil = function(leadId, cotIdx){
+  if(!confirm('¿Eliminar esta cotización del perfil? Esta acción no se puede deshacer.')) return;
+  const lead = leads.find(function(l){ return l.id === leadId; });
+  if(!lead || !lead.cotizaciones || !lead.cotizaciones[cotIdx]) return;
+  const cot = lead.cotizaciones[cotIdx];
+  lead.cotizaciones.splice(cotIdx, 1);
+  saveData();
+  if(typeof window.logAction === 'function') window.logAction(leadId, '🗑️ Eliminó cotización: ' + (cot.tipologiaLabel || cot.tipologia));
+  if(typeof renderClientePerfil === 'function') renderClientePerfil(leadId);
+  if(typeof toast === 'function') toast('🗑️ Cotización eliminada');
+};
+
+// Hook al panel de Vista Clientes: agregar campo email + botón guardar
+(function(){
+  const __origRender_v35 = renderAmobladosClientes;
+  renderAmobladosClientes = function(c){
+    __origRender_v35(c);
+    setTimeout(function(){
+      try {
+        const controls = c.querySelector('.no-print');
+        if(!controls) return;
+        // 1) Campo email después del campo "Para"
+        if(!controls.querySelector('.email-cliente-field')){
+          const paraField = Array.from(controls.querySelectorAll('.field')).find(function(f){
+            const lbl = f.querySelector('label');
+            return lbl && lbl.textContent.includes('Para');
+          });
+          if(paraField){
+            const emailField = document.createElement('div');
+            emailField.className = 'field email-cliente-field';
+            emailField.innerHTML = '<label>📧 Email del cliente</label><input type="email" value="' + (window.cliConfig.paraEmail || '').replace(/"/g,'&quot;') + '" placeholder="cliente@email.com" onchange="updParaEmail(this.value)">';
+            paraField.parentNode.insertBefore(emailField, paraField.nextSibling);
+          }
+        }
+        // 2) Botón "Guardar en perfil" en la barra de acciones
+        const headerBtns = controls.querySelector('div[style*="display:flex"][style*="gap:6px"]');
+        if(headerBtns && !headerBtns.querySelector('.btn-guardar-cot')){
+          const btn = document.createElement('button');
+          btn.className = 'btn btn-sm btn-guardar-cot';
+          btn.style.cssText = 'background:#10b981;border-color:#10b981;color:#fff;font-weight:800';
+          btn.innerHTML = '💾 Guardar en perfil';
+          btn.onclick = window.guardarCotizacionEnPerfil;
+          headerBtns.insertBefore(btn, headerBtns.firstChild);
+        }
+      } catch(e){ console.warn('V35 controls error:', e); }
+    }, 220);
+  };
+})();
+
+// Hook a renderClientePerfil: agregar sección de cotizaciones guardadas
+(function(){
+  const __origRenderPerfil_v35 = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __origRenderPerfil_v35(currentId);
+    setTimeout(function(){
+      try {
+        const cliente = leads.find(function(x){ return x.id === currentId; });
+        if(!cliente) return;
+        const key = (typeof getClienteKey === 'function') ? getClienteKey(cliente) : '';
+        const deptos = (typeof getDeptosCliente === 'function') ? getDeptosCliente(key) : [cliente];
+        const todasCot = [];
+        deptos.forEach(function(d){
+          (d.cotizaciones || []).forEach(function(cot, idx){
+            todasCot.push(Object.assign({}, cot, {leadId: d.id, leadIdx: idx, leadAddr: d.address || ''}));
+          });
+        });
+        if(!todasCot.length) return;
+        todasCot.sort(function(a, b){ return (b.fecha || '').localeCompare(a.fecha || ''); });
+        const mc = document.getElementById('mc');
+        if(!mc || mc.querySelector('.section-cotizaciones')) return;
+        const section = document.createElement('div');
+        section.className = 'section-cotizaciones';
+        section.style.cssText = 'margin-top:18px';
+        section.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">💾 Cotizaciones guardadas (${todasCot.length})</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            ${todasCot.map(function(cot){
+              return `<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid var(--green);border-radius:var(--rsm);padding:11px 14px;display:flex;align-items:center;gap:12px">
+                <div style="flex:1;min-width:0">
+                  <div class="N" style="font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cot.tipologiaLabel || cot.tipologia}${cot.config && cot.config.descuentoNivel ? ` · Cyber ${cot.config.descuentoNivel}%` : ''}</div>
+                  <div style="font-size:11px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${cot.fechaStr || ''} · ${cot.usuarioCreador || ''}</div>
+                  ${cot.paraNombre || cot.paraEmail ? `<div style="font-size:10px;color:var(--text3);font-style:italic">Para: ${cot.paraNombre || ''}${cot.paraEmail ? ' · ' + cot.paraEmail : ''}</div>` : ''}
+                </div>
+                <div class="N" style="font-size:15px;font-weight:900;color:var(--purple-d);flex-shrink:0">${formatCLP(cot.total)}</div>
+                <button onclick="cargarCotizacionDelPerfil(${cot.leadId},${cot.leadIdx})" class="btn btn-sm" style="flex-shrink:0">🔄 Ver/Editar</button>
+                <button onclick="eliminarCotizacionDelPerfil(${cot.leadId},${cot.leadIdx})" style="font-size:13px;background:none;border:2px solid var(--border2);border-radius:6px;color:var(--red);cursor:pointer;padding:5px 9px;flex-shrink:0">🗑️</button>
+              </div>`;
+            }).join('')}
+          </div>
+        `;
+        mc.appendChild(section);
+      } catch(e){ console.warn('V35 perfil cot error:', e); }
+    }, 280);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
