@@ -7095,6 +7095,80 @@ window.openModalDeptoFromPerfil = function(id){
   window.perfilCurrentLeadId = id;
   window.mostrarDeptoEnPerfil(id);
 };
+  // ═══ V37 FIX: Mover modal al área principal (no copiar HTML) ═══
+
+window.mostrarDeptoEnPerfil = function(leadId){
+  const lead = leads.find(function(x){ return x.id === leadId; });
+  if(!lead) return;
+  // Limpiar cualquier overlay previo
+  const prev = document.getElementById('crm-ov');
+  if(prev) prev.remove();
+  selectedId = leadId;
+  currentView = 'depto-en-perfil';
+  window.perfilDeptoId = leadId;
+  // Renderizar el modal normalmente (crea overlay con el modal dentro)
+  if(typeof renderModal === 'function') renderModal();
+  // Esperar a que todos los hooks (V18, V22, V28...) terminen de modificar el modal
+  setTimeout(function(){
+    const ov = document.getElementById('crm-ov');
+    if(!ov){ console.warn('V37: no overlay'); return; }
+    const modal = ov.querySelector('.modal');
+    if(!modal){ ov.remove(); return; }
+    // Adaptar estilos del modal para que se vea como página
+    modal.style.width = 'auto';
+    modal.style.height = 'auto';
+    modal.style.maxHeight = 'none';
+    modal.style.position = 'static';
+    modal.style.animation = 'none';
+    modal.style.boxShadow = 'none';
+    // Quitar el botón ✕
+    const closeBtn = modal.querySelector('[onclick="closeModal()"]');
+    if(closeBtn && closeBtn.parentNode) closeBtn.parentNode.removeChild(closeBtn);
+    // Quitar el sticky del header
+    const mhd = modal.querySelector('.mhd');
+    if(mhd){
+      mhd.style.position = 'static';
+      mhd.style.top = '';
+    }
+    // Cambiar título del CRM
+    if(document.getElementById('vtitle')){
+      document.getElementById('vtitle').textContent = '🏠 ' + (lead.address || lead.name);
+    }
+    // Construir nuevo contenido en mc
+    const mc = document.getElementById('mc');
+    mc.innerHTML = '';
+    const btnVolver = document.createElement('button');
+    btnVolver.onclick = window.volverAlPerfilCliente;
+    btnVolver.style.cssText = 'background:var(--surface);border:2px solid var(--border2);color:var(--text);font-size:12px;cursor:pointer;padding:7px 14px;margin-bottom:14px;font-weight:700;border-radius:var(--rsm);font-family:\'Nunito\',sans-serif';
+    btnVolver.textContent = '← Volver al perfil del cliente';
+    mc.appendChild(btnVolver);
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden';
+    // MOVER el modal (no copiar) al card
+    card.appendChild(modal);
+    mc.appendChild(card);
+    // Eliminar el overlay vacío
+    if(ov.parentNode) ov.parentNode.removeChild(ov);
+  }, 500);
+};
+
+window.volverAlPerfilCliente = function(){
+  const leadId = window.perfilDeptoId || window.perfilCurrentLeadId;
+  // Limpiar cualquier overlay residual
+  const ov = document.getElementById('crm-ov');
+  if(ov) ov.remove();
+  if(leadId && typeof showClientePerfil === 'function'){
+    showClientePerfil(leadId);
+  } else {
+    if(typeof showView === 'function') showView('pipeline', null);
+  }
+};
+
+window.openModalDeptoFromPerfil = function(id){
+  selectedId = id;
+  window.perfilCurrentLeadId = id;
+  window.mostrarDeptoEnPerfil(id);
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
