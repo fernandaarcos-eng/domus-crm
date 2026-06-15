@@ -8433,6 +8433,47 @@ setTimeout(function(){
   });
   observer.observe(nav, {childList: true, subtree: false});
 }, 6000);
+  // ═══ V48: Formularios con setInterval permanente ═══
+
+window.V48_FORM_OK = false;
+
+function v48_inyectarFormularios(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return false;
+  const headers = nav.querySelectorAll('.sb-section-head');
+  let ya = false;
+  headers.forEach(function(h){ if(h.textContent.includes('Formularios')) ya = true; });
+  if(ya){ window.V48_FORM_OK = true; return true; }
+  // Crear sección
+  const section = document.createElement('div');
+  section.className = 'sb-section';
+  section.id = 'nav-formularios-section';
+  section.innerHTML = '<div class="sb-section-head" onclick="toggleSidebarSection(\'formularios\')"><span class="sb-section-arrow collapsed" id="arr-formularios">▶</span><span>📝 Formularios</span></div><div class="sb-section-items hidden" id="sb-formularios"><div class="nav-i" onclick="showView(\'formularios\',this)"><i class="ti ti-clipboard-list"></i>Respuestas</div></div>';
+  // Insertar antes de Marketing
+  let marketingSection = null;
+  Array.from(nav.querySelectorAll('.sb-section')).forEach(function(s){
+    if(s.textContent.includes('Marketing') && !s.textContent.includes('Formularios')) marketingSection = s;
+  });
+  if(marketingSection) marketingSection.parentNode.insertBefore(section, marketingSection);
+  else nav.appendChild(section);
+  window.V48_FORM_OK = true;
+  console.log('V48: Formularios inyectado');
+  return true;
+}
+
+// Intervalo permanente cada 3 segundos
+window.V48_INTERVAL = setInterval(function(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return;
+  let existe = false;
+  nav.querySelectorAll('.sb-section-head').forEach(function(h){
+    if(h.textContent.includes('Formularios')) existe = true;
+  });
+  if(!existe) v48_inyectarFormularios();
+}, 3000);
+
+// Intentar de inmediato y a los 1s también
+setTimeout(v48_inyectarFormularios, 1000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
