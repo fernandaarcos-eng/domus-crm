@@ -8014,6 +8014,109 @@ function intentarFormularios(reintentos){
   if(reintentos < 25) setTimeout(function(){ intentarFormularios(reintentos+1); }, 500);
 }
 intentarFormularios();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V43: Simplificar pasos del pipeline a 11 ═════════════
+// ═══════════════════════════════════════════════════════════
+
+// Nuevos pasos (11)
+window.FLOW_STEPS_V43 = [
+  {g:'Contacto',     emoji:'💬', text:'Prospecto creado'},
+  {g:'Reunión',      emoji:'🤝', text:'Reunión'},
+  {g:'Datos',        emoji:'📧', text:'Correo solicitud de datos enviado'},
+  {g:'Datos',        emoji:'📂', text:'Correo solicitud de datos recibido'},
+  {g:'Contrato Adm.',emoji:'📄', text:'Contrato de administración enviado'},
+  {g:'Contrato Amob.',emoji:'📝', text:'Contrato de amoblado firmado'},
+  {g:'Llaves',       emoji:'🔑', text:'Llaves recibidas'},
+  {g:'Amoblado',     emoji:'🔨', text:'Amoblado en proceso'},
+  {g:'Fotografía',   emoji:'📷', text:'Sesión fotográfica realizada'},
+  {g:'Fotografía',   emoji:'🎨', text:'Fotos editadas y listas'},
+  {g:'Bienvenida',   emoji:'🎉', text:'Bienvenida propietario'}
+];
+
+// Reemplazar FLOW_STEPS global (window.FLOW_STEPS y la variable directa si es accesible)
+try { FLOW_STEPS = window.FLOW_STEPS_V43; } catch(e){}
+window.FLOW_STEPS = window.FLOW_STEPS_V43;
+
+// Migración: mapear checks viejos (21) a nuevos (11)
+// Mapeo viejo índice → nuevo índice
+window.MAPEO_CHECKS_V43 = {
+  0: 0,   // WhatsApp → Prospecto creado
+  1: 1,   // Reunión agendada → Reunión
+  2: 1,   // Reunión cursada → Reunión
+  4: 2,   // Correo enviado → Correo enviado
+  5: 3,   // Datos recibidos → Correo recibido
+  6: 4,   // Contrato adm enviado → Contrato admin enviado
+  8: 5,   // Contrato amob firmado → Contrato amob firmado
+  10: 6,  // Llaves → Llaves
+  11: 7,  // Amoblado en proceso → Amoblado en proceso
+  15: 8,  // Sesión foto → Sesión fotográfica
+  16: 9,  // Fotos editadas → Fotos editadas
+  20: 10  // Bienvenida → Bienvenida propietario
+};
+
+function migrarChecksV43(){
+  let cambiados = 0;
+  leads.forEach(function(l){
+    if(l._migrated_v43) return;
+    const viejos = l.checks || [];
+    const nuevos = new Array(11).fill(false);
+    // Si ya tiene 11 o menos, asumir que ya está migrado (o tiene esquema nuevo)
+    if(viejos.length <= 11){
+      // Copiar lo que tenga
+      for(let i = 0; i < Math.min(viejos.length, 11); i++){
+        nuevos[i] = !!viejos[i];
+      }
+      l.checks = nuevos;
+      l._migrated_v43 = true;
+      return;
+    }
+    // Migrar de 21 a 11
+    Object.entries(window.MAPEO_CHECKS_V43).forEach(function(e){
+      const oldIdx = parseInt(e[0]);
+      const newIdx = parseInt(e[1]);
+      if(viejos[oldIdx]) nuevos[newIdx] = true;
+    });
+    l.checks = nuevos;
+    l._migrated_v43 = true;
+    cambiados++;
+  });
+  if(cambiados > 0){
+    console.log('V43: migrados ' + cambiados + ' leads de 21 → 11 pasos');
+    saveData();
+  }
+}
+
+// Sobrescribir defaultChecks para que devuelva 11 elementos
+window.defaultChecksV43 = function(stage){
+  const stageOrder = ['prospecto','reunion_agendada','reunion_cursada','resultado_reunion','correo_datos','contrato_enviado','contrato_firmado','amob_contrato_firmado','amob_contrato_enviado','amob_proceso','amob_pagado','foto_tomada','foto_editada','foto_publicada','cliente_activo'];
+  const idx = stageOrder.indexOf(stage);
+  const checks = new Array(11).fill(false);
+  // Asignar checks según etapa
+  if(idx >= 0) checks[0] = true; // prospecto creado siempre
+  if(idx >= 2) checks[1] = true; // reunión hecha (al menos cursada)
+  if(idx >= 4) checks[2] = true; // correo enviado (correo_datos)
+  if(idx >= 5) checks[3] = true; // correo recibido (contrato_enviado o más)
+  if(idx >= 5) checks[4] = true; // contrato adm enviado
+  if(idx >= 7) checks[5] = true; // contrato amob firmado (amob_contrato_firmado)
+  if(idx >= 8) checks[6] = true; // llaves
+  if(idx >= 9) checks[7] = true; // amoblado en proceso
+  if(idx >= 11) checks[8] = true; // sesión foto (foto_tomada)
+  if(idx >= 12) checks[9] = true; // fotos editadas
+  if(idx >= 14) checks[10] = true; // bienvenida (cliente_activo)
+  return checks;
+};
+try { defaultChecks = window.defaultChecksV43; } catch(e){}
+
+// Migrar al cargar (con delay para que leads estén listos)
+function tryMigrarV43(reintentos){
+  reintentos = reintentos || 0;
+  if(typeof leads !== 'undefined' && leads && leads.length){
+    migrarChecksV43();
+  } else if(reintentos < 10){
+    setTimeout(function(){ tryMigrarV43(reintentos + 1); }, 800);
+  }
+}
+setTimeout(tryMigrarV43, 2500);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
