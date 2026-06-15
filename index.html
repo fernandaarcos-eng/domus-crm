@@ -8216,6 +8216,123 @@ window.cerrarSesionResumen = function(){
     }, 200);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V46 FIX: Forzar 11 pasos + Vista clientes en sidebar ═
+// ═══════════════════════════════════════════════════════════
+
+// === 1) FORZAR 11 PASOS ===
+window.FLOW_STEPS_FORCE = [
+  {g:'Contacto', emoji:'💬', text:'Prospecto creado'},
+  {g:'Reunión', emoji:'🤝', text:'Reunión'},
+  {g:'Datos', emoji:'📧', text:'Correo solicitud de datos enviado'},
+  {g:'Datos', emoji:'📂', text:'Correo solicitud de datos recibido'},
+  {g:'Contrato Adm.', emoji:'📄', text:'Contrato de administración enviado'},
+  {g:'Contrato Amob.', emoji:'📝', text:'Contrato de amoblado firmado'},
+  {g:'Llaves', emoji:'🔑', text:'Llaves recibidas'},
+  {g:'Amoblado', emoji:'🔨', text:'Amoblado en proceso'},
+  {g:'Fotografía', emoji:'📷', text:'Sesión fotográfica realizada'},
+  {g:'Fotografía', emoji:'🎨', text:'Fotos editadas y listas'},
+  {g:'Bienvenida', emoji:'🎉', text:'Bienvenida propietario'}
+];
+
+window.MAPEO_V46 = {0:0,1:1,2:1,4:2,5:3,6:4,8:5,10:6,11:7,15:8,16:9,20:10};
+
+function migrarChecksV46(){
+  let migrados = 0;
+  leads.forEach(function(l){
+    if(l._migrated_v46_pasos) return;
+    const viejos = l.checks || [];
+    if(viejos.length === 11){ l._migrated_v46_pasos = true; return; }
+    const nuevos = new Array(11).fill(false);
+    Object.entries(window.MAPEO_V46).forEach(function(e){
+      if(viejos[parseInt(e[0])]) nuevos[parseInt(e[1])] = true;
+    });
+    l.checks = nuevos;
+    l._migrated_v46_pasos = true;
+    migrados++;
+  });
+  if(migrados > 0){ console.log('V46: ' + migrados + ' leads migrados'); saveData(); }
+}
+setTimeout(function(){ if(leads && leads.length) migrarChecksV46(); }, 2500);
+
+// Interceptar renderModal para reescribir la tab Pasos con los 11 nuevos
+(function(){
+  if(typeof renderModal !== 'function') return;
+  const __origRenderModal_v46 = renderModal;
+  renderModal = function(){
+    __origRenderModal_v46();
+    setTimeout(function(){
+      try {
+        const tflow = document.getElementById('tflow');
+        if(!tflow) return;
+        const l = leads.find(function(x){ return x.id === selectedId; });
+        if(!l) return;
+        // Asegurar checks de 11
+        if(!l.checks || l.checks.length !== 11){
+          const viejos = l.checks || [];
+          const nuevos = new Array(11).fill(false);
+          Object.entries(window.MAPEO_V46).forEach(function(e){
+            if(viejos[parseInt(e[0])]) nuevos[parseInt(e[1])] = true;
+          });
+          l.checks = nuevos;
+        }
+        const pasos = window.FLOW_STEPS_FORCE;
+        const total = pasos.length;
+        const ok = l.checks.filter(Boolean).length;
+        const p = total ? Math.round(ok/total*100) : 0;
+        const pColor = typeof pctColor==='function' ? pctColor(p) : (p===100?'#16a34a':'#7c3aed');
+        let html = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:10px 12px;background:${p===100?'var(--green-l)':'var(--bg)'};border-radius:var(--rsm);border:2px solid ${p===100?'rgba(22,163,74,.25)':'var(--border)'}">
+          <div><div class="N" style="font-size:13px;font-weight:900;color:${p===100?'var(--green-d)':'var(--text)'}">${p===100?'🎉 ¡Todo listo!':'Progreso'}</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:1px">${ok} de ${total} pasos</div></div>
+          <div class="N" style="font-size:24px;font-weight:900;color:${pColor}">${p}%</div>
+        </div>
+        <div class="pbar" style="height:7px;margin-bottom:14px"><div class="pbar-f" style="width:${p}%;background:${pColor}"></div></div>`;
+        let lastG = '';
+        pasos.forEach(function(step, i){
+          if(step.g !== lastG){ lastG = step.g; html += '<div class="fs-group-head">' + step.g + '</div>'; }
+          html += '<div class="flow-step' + (l.checks[i]?' done':'') + '">' +
+            '<input type="checkbox" ' + (l.checks[i]?'checked':'') + ' onchange="toggleCheck(' + l.id + ',' + i + ',this.checked)" onclick="event.stopPropagation()">' +
+            '<span class="fs-num">' + (i+1) + '</span>' +
+            '<span class="fs-em">' + step.emoji + '</span>' +
+            '<div style="flex:1"><div class="fs-label">' + step.text + '</div></div>' +
+          '</div>';
+        });
+        tflow.innerHTML = html;
+      } catch(e){ console.warn('V46 pasos error:', e); }
+    }, 280);
+  };
+})();
+
+// === 2) VISTA CLIENTES EN SIDEBAR ===
+function fixSidebarV46(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return false;
+  const headers = nav.querySelectorAll('.sb-section-head');
+  let yaExiste = false;
+  headers.forEach(function(h){ if(h.textContent.includes('Vista clientes')) yaExiste = true; });
+  if(yaExiste) return true;
+  // Construir sección
+  const section = document.createElement('div');
+  section.className = 'sb-section';
+  section.id = 'nav-vistaclientes-v46';
+  section.innerHTML = '<div class="sb-section-head" onclick="toggleSidebarSection(\'vistaclientes\')"><span class="sb-section-arrow collapsed" id="arr-vistaclientes">▶</span><span>🛍️ Vista clientes</span></div><div class="sb-section-items hidden" id="sb-vistaclientes"><div class="nav-i" onclick="showView(\'amoblados-clientes\',this)"><i class="ti ti-presentation"></i>Cotización</div><div class="nav-i" onclick="showView(\'amoblados-calc\',this)"><i class="ti ti-math-symbols"></i>Calculadora</div></div>';
+  // Insertar después de Amoblados
+  let amobladosSection = null;
+  Array.from(nav.querySelectorAll('.sb-section')).forEach(function(s){
+    if(s.textContent.includes('Amoblados') && !s.textContent.includes('Vista clientes')) amobladosSection = s;
+  });
+  if(amobladosSection) amobladosSection.parentNode.insertBefore(section, amobladosSection.nextSibling);
+  else nav.appendChild(section);
+  return true;
+}
+function intentarFixSidebarV46(reintentos){
+  reintentos = reintentos || 0;
+  if(fixSidebarV46()) return;
+  if(reintentos < 20) setTimeout(function(){ intentarFixSidebarV46(reintentos+1); }, 500);
+}
+setTimeout(intentarFixSidebarV46, 1500);
+setTimeout(intentarFixSidebarV46, 4000);
+setTimeout(intentarFixSidebarV46, 8000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
