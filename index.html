@@ -7725,6 +7725,117 @@ window.eliminarComprobantePago = function(leadId){
     }, 320);
   };
 })();
+  // ═══ V42: Clave de acceso al cotizador interno ═══
+
+// Cambia esta clave por la que tú quieras (mínimo 4 caracteres)
+window.COTIZADOR_CLAVE = 'Domus2026';
+
+// Interceptar showView para pedir clave en cotizador interno
+(function(){
+  if(typeof showView !== 'function') return;
+  const __origShowView_v42 = showView;
+  showView = function(v, el){
+    if(v === 'amoblados-cotizador'){
+      // Verificar si ya está autenticado en esta sesión
+      if(sessionStorage.getItem('cotizador_unlocked') !== '1'){
+        mostrarPromptClaveCotizador(el);
+        return;
+      }
+    }
+    __origShowView_v42(v, el);
+  };
+})();
+
+function mostrarPromptClaveCotizador(navEl){
+  const ex = document.getElementById('cotizador-lock-ov');
+  if(ex) ex.remove();
+  const ov = document.createElement('div');
+  ov.id = 'cotizador-lock-ov';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(20,15,40,.55);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);font-family:\'Nunito Sans\',sans-serif';
+  ov.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:30px 32px;width:380px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.25);text-align:center">
+      <div style="font-size:48px;margin-bottom:8px">🔐</div>
+      <div class="N" style="font-size:18px;font-weight:900;color:#1a1730">Cotizador interno</div>
+      <div style="font-size:12px;color:#6a6080;margin:6px 0 22px;line-height:1.5">Esta sección contiene precios internos sensibles.<br>Ingresa la clave para continuar.</div>
+      <input id="cotizador-clave-input" type="password" placeholder="Contraseña" autocomplete="off" autofocus
+        style="width:100%;padding:11px 14px;font-size:15px;border:2px solid rgba(120,90,220,.22);border-radius:10px;margin-bottom:10px;outline:none;font-family:inherit;text-align:center;letter-spacing:.05em">
+      <div id="cotizador-clave-error" style="font-size:11px;color:#dc2626;margin-bottom:10px;min-height:14px;font-weight:700"></div>
+      <div style="display:flex;gap:8px">
+        <button onclick="document.getElementById('cotizador-lock-ov').remove()" 
+          style="flex:1;padding:10px;font-size:13px;font-weight:800;background:#fff;color:#6a6080;border:2px solid rgba(120,90,220,.22);border-radius:10px;cursor:pointer;font-family:\'Nunito\',sans-serif">Cancelar</button>
+        <button onclick="window.validarClaveCotizador()" 
+          style="flex:1;padding:10px;font-size:13px;font-weight:800;background:#7c3aed;color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:\'Nunito\',sans-serif">Entrar</button>
+      </div>
+    </div>
+  `;
+  ov.addEventListener('click', function(e){ if(e.target === ov) ov.remove(); });
+  document.body.appendChild(ov);
+  setTimeout(function(){
+    const inp = document.getElementById('cotizador-clave-input');
+    if(inp){
+      inp.focus();
+      inp.addEventListener('keypress', function(e){
+        if(e.key === 'Enter') window.validarClaveCotizador();
+      });
+    }
+  }, 100);
+}
+
+window.validarClaveCotizador = function(){
+  const inp = document.getElementById('cotizador-clave-input');
+  const err = document.getElementById('cotizador-clave-error');
+  if(!inp) return;
+  if(inp.value === window.COTIZADOR_CLAVE){
+    sessionStorage.setItem('cotizador_unlocked', '1');
+    document.getElementById('cotizador-lock-ov').remove();
+    if(typeof toast === 'function') toast('🔓 Acceso concedido');
+    // Mostrar cotizador
+    const nav = document.querySelector('[onclick*="showView(\'amoblados-cotizador\',this)"]');
+    if(typeof showView === 'function') showView('amoblados-cotizador', nav);
+  } else {
+    err.textContent = '❌ Clave incorrecta';
+    inp.value = '';
+    inp.focus();
+    inp.style.borderColor = '#dc2626';
+    inp.style.animation = 'shake .4s';
+    setTimeout(function(){
+      inp.style.borderColor = '';
+      inp.style.animation = '';
+    }, 500);
+  }
+};
+
+// Botón para cerrar sesión del cotizador (opcional, en el cotizador mismo)
+window.cerrarSesionCotizador = function(){
+  sessionStorage.removeItem('cotizador_unlocked');
+  if(typeof toast === 'function') toast('🔒 Cotizador bloqueado');
+  if(typeof showView === 'function') showView('pipeline', null);
+};
+
+// Agregar animación shake
+(function(){
+  const s = document.createElement('style');
+  s.textContent = '@keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-6px)} 75%{transform:translateX(6px)} }';
+  document.head.appendChild(s);
+})();
+
+// Botón "🔒 Cerrar" en el cotizador (para volver a bloquear)
+(function(){
+  if(typeof renderAmobladosCotizador !== 'function') return;
+  const __origRenderCot_v42 = renderAmobladosCotizador;
+  renderAmobladosCotizador = function(c){
+    __origRenderCot_v42(c);
+    setTimeout(function(){
+      if(c.querySelector('.btn-bloquear-cot')) return;
+      const btn = document.createElement('button');
+      btn.className = 'btn-bloquear-cot';
+      btn.onclick = window.cerrarSesionCotizador;
+      btn.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#dc2626;color:#fff;border:none;padding:8px 14px;border-radius:20px;cursor:pointer;font-size:11px;font-weight:800;font-family:\'Nunito\',sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:100';
+      btn.innerHTML = '🔒 Bloquear cotizador';
+      c.appendChild(btn);
+    }, 200);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
