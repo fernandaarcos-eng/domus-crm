@@ -7939,6 +7939,81 @@ function tryMigrarV43(reintentos){
   }
 }
 setTimeout(tryMigrarV43, 2500);
+  // ═══ V44: Sección Formularios ═══
+
+window.FORM_URL = 'https://docs.google.com/forms/d/1XFcq3O9b5ZodIy1RpsmWdQloGI_u5SxNgCiEKKFBYhM/edit';
+window.RESPUESTAS_URL = 'https://docs.google.com/spreadsheets/d/1kG9IbeADmrXOEH8KMABef2DUOauz7dNjy1tfOC-E6hk/edit?gid=790187817';
+window.RESPUESTAS_EMBED = 'https://docs.google.com/spreadsheets/d/1kG9IbeADmrXOEH8KMABef2DUOauz7dNjy1tfOC-E6hk/preview?gid=790187817&widget=true&headers=false&chrome=false';
+
+function renderFormularios(c){
+  c.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div>
+        <div class="N" style="font-size:14px;font-weight:900;color:var(--text)">📋 Formulario de propietarios</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">Respuestas se actualizan en tiempo real desde Google Forms</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <a href="${window.FORM_URL}" target="_blank" class="btn btn-sm btn-p"><i class="ti ti-edit"></i>📝 Editar formulario</a>
+        <a href="${window.RESPUESTAS_URL}" target="_blank" class="btn btn-sm"><i class="ti ti-external-link"></i>↗ Abrir Sheet completo</a>
+      </div>
+    </div>
+    <div style="background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden;height:calc(100vh - 220px);min-height:560px">
+      <iframe src="${window.RESPUESTAS_EMBED}" width="100%" height="100%" style="border:none;display:block" allowfullscreen></iframe>
+    </div>
+    <div style="font-size:10px;color:var(--text3);font-style:italic;margin-top:8px">Si no ves respuestas: asegúrate de que el Sheet esté compartido como "Cualquier persona con el enlace puede ver"</div>
+  `;
+}
+
+// Interceptar showView
+(function(){
+  if(typeof showView !== 'function') return;
+  const __origShowView_v44 = showView;
+  showView = function(v, el){
+    if(v === 'formularios'){
+      document.querySelectorAll('.nav-i').forEach(function(n){ n.classList.remove('active'); });
+      if(el) el.classList.add('active');
+      currentView = 'formularios';
+      if(document.getElementById('vtitle')) document.getElementById('vtitle').textContent = '📝 Formularios';
+      renderFormularios(document.getElementById('mc'));
+      return;
+    }
+    __origShowView_v44(v, el);
+  };
+})();
+
+// Inyectar sección en sidebar
+function inyectarFormulariosSidebar(){
+  const navComercial = document.getElementById('nav-comercial');
+  if(!navComercial) return false;
+  if(document.getElementById('nav-formularios-section')) return true;
+  // Buscar sección Marketing para insertar antes
+  const sections = navComercial.querySelectorAll('.sb-section');
+  let marketingSection = null;
+  sections.forEach(function(s){
+    if(s.textContent.includes('Marketing')) marketingSection = s;
+  });
+  const newSection = document.createElement('div');
+  newSection.id = 'nav-formularios-section';
+  newSection.className = 'sb-section';
+  newSection.innerHTML = `
+    <div class="sb-section-head" onclick="toggleSidebarSection('formularios')">
+      <span class="sb-section-arrow collapsed" id="arr-formularios">▶</span>
+      <span>📝 Formularios</span>
+    </div>
+    <div class="sb-section-items hidden" id="sb-formularios">
+      <div class="nav-i" onclick="showView('formularios',this)"><i class="ti ti-clipboard-list"></i>Respuestas</div>
+    </div>
+  `;
+  if(marketingSection) marketingSection.parentNode.insertBefore(newSection, marketingSection);
+  else navComercial.appendChild(newSection);
+  return true;
+}
+function intentarFormularios(reintentos){
+  reintentos = reintentos || 0;
+  if(inyectarFormulariosSidebar()) return;
+  if(reintentos < 25) setTimeout(function(){ intentarFormularios(reintentos+1); }, 500);
+}
+intentarFormularios();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
