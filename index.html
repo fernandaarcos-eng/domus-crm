@@ -8333,6 +8333,56 @@ function intentarFixSidebarV46(reintentos){
 setTimeout(intentarFixSidebarV46, 1500);
 setTimeout(intentarFixSidebarV46, 4000);
 setTimeout(intentarFixSidebarV46, 8000);
+  // ═══ V47 FIX: Formularios al final del sidebar ═══
+
+function forzarFormulariosV47(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return false;
+  // Si ya existe la sección Formularios, no agregar
+  const headers = nav.querySelectorAll('.sb-section-head');
+  let yaExiste = false;
+  headers.forEach(function(h){
+    if(h.textContent.includes('Formularios')) yaExiste = true;
+  });
+  if(yaExiste) return true;
+  // Crear sección Formularios
+  const section = document.createElement('div');
+  section.className = 'sb-section';
+  section.id = 'nav-formularios-section';
+  section.innerHTML = '<div class="sb-section-head" onclick="toggleSidebarSection(\'formularios\')"><span class="sb-section-arrow collapsed" id="arr-formularios">▶</span><span>📝 Formularios</span></div><div class="sb-section-items hidden" id="sb-formularios"><div class="nav-i" onclick="showView(\'formularios\',this)"><i class="ti ti-clipboard-list"></i>Respuestas</div></div>';
+  // Insertar antes de Marketing (o al final si no existe)
+  let marketingSection = null;
+  Array.from(nav.querySelectorAll('.sb-section')).forEach(function(s){
+    if(s.textContent.includes('Marketing') && !s.textContent.includes('Formularios')) marketingSection = s;
+  });
+  if(marketingSection) marketingSection.parentNode.insertBefore(section, marketingSection);
+  else nav.appendChild(section);
+  return true;
+}
+
+// Aplicar varias veces, después de V46
+setTimeout(forzarFormulariosV47, 2000);
+setTimeout(forzarFormulariosV47, 4500);
+setTimeout(forzarFormulariosV47, 7000);
+setTimeout(forzarFormulariosV47, 10000);
+setTimeout(forzarFormulariosV47, 15000);
+
+// MutationObserver: si el sidebar cambia, re-aplicar
+setTimeout(function(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return;
+  const observer = new MutationObserver(function(){
+    // Verificar si Formularios sigue ahí
+    let tiene = false;
+    nav.querySelectorAll('.sb-section-head').forEach(function(h){
+      if(h.textContent.includes('Formularios')) tiene = true;
+    });
+    if(!tiene){
+      forzarFormulariosV47();
+    }
+  });
+  observer.observe(nav, {childList: true, subtree: false});
+}, 6000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
