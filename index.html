@@ -9309,6 +9309,27 @@ function tryMigrarV51(r){
   else if(r < 15) setTimeout(function(){ tryMigrarV51(r+1); }, 800);
 }
 setTimeout(tryMigrarV51, 5500);
+  // ═══ V52: Eliminar sección Documentos del sidebar ═══
+
+function v52_quitarDocumentos(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return;
+  nav.querySelectorAll('.sb-section').forEach(function(s){
+    const head = s.querySelector('.sb-section-head');
+    if(head){
+      const txt = head.textContent.trim();
+      // Eliminar solo si es la sección "Documentos" (no "Contratos" ni "Formularios")
+      if(/Documentos/i.test(txt) && !/Contratos/i.test(txt)){
+        s.remove();
+      }
+    }
+  });
+}
+
+setTimeout(v52_quitarDocumentos, 1000);
+setTimeout(v52_quitarDocumentos, 3000);
+setTimeout(v52_quitarDocumentos, 6000);
+setInterval(v52_quitarDocumentos, 4000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
