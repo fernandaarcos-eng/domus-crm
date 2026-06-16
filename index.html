@@ -9330,6 +9330,68 @@ setTimeout(v52_quitarDocumentos, 1000);
 setTimeout(v52_quitarDocumentos, 3000);
 setTimeout(v52_quitarDocumentos, 6000);
 setInterval(v52_quitarDocumentos, 4000);
+  // ═══ V54: Adicionales como tab dentro del Cotizador interno ═══
+
+// 1) Quitar item "Adicionales" del sidebar
+function v54_quitarAdicionalesSidebar(){
+  const nav = document.getElementById('nav-comercial');
+  if(!nav) return;
+  nav.querySelectorAll('.nav-i').forEach(function(item){
+    const t = item.textContent.trim().replace(/[↳\s]+/g,' ').trim();
+    if(/^Adicionales$/i.test(t)){
+      item.style.display = 'none';
+    }
+  });
+}
+setTimeout(v54_quitarAdicionalesSidebar, 1000);
+setInterval(v54_quitarAdicionalesSidebar, 4000);
+
+// 2) Inyectar tabs Cotizador / Adicionales cuando se está en cualquiera de las dos vistas
+window.V54_VIEWS = ['amoblados-cotizador', 'amoblados-adicionales'];
+
+function v54_inyectarTabs(activeView){
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  // Quitar tab bar previa
+  const prev = document.getElementById('v54-tabs');
+  if(prev) prev.remove();
+  // Crear nueva
+  const bar = document.createElement('div');
+  bar.id = 'v54-tabs';
+  bar.style.cssText = 'display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--border);padding-bottom:0';
+  bar.innerHTML = 
+    '<button onclick="showView(\'amoblados-cotizador\',null)" style="padding:9px 16px;border:none;background:' + (activeView==='amoblados-cotizador'?'var(--purple)':'transparent') + ';color:' + (activeView==='amoblados-cotizador'?'#fff':'var(--text2)') + ';font-weight:800;font-size:12px;cursor:pointer;border-radius:8px 8px 0 0;font-family:inherit;border-bottom:3px solid ' + (activeView==='amoblados-cotizador'?'var(--purple)':'transparent') + ';margin-bottom:-2px">📊 Cotizador</button>' +
+    '<button onclick="showView(\'amoblados-adicionales\',null)" style="padding:9px 16px;border:none;background:' + (activeView==='amoblados-adicionales'?'var(--purple)':'transparent') + ';color:' + (activeView==='amoblados-adicionales'?'#fff':'var(--text2)') + ';font-weight:800;font-size:12px;cursor:pointer;border-radius:8px 8px 0 0;font-family:inherit;border-bottom:3px solid ' + (activeView==='amoblados-adicionales'?'var(--purple)':'transparent') + ';margin-bottom:-2px">📦 Adicionales</button>';
+  mc.insertBefore(bar, mc.firstChild);
+}
+
+// 3) Interceptar showView para inyectar tabs en cualquiera de las dos vistas
+(function(){
+  if(typeof showView !== 'function') return;
+  const __orig = showView;
+  window.showView = function(v, el){
+    __orig(v, el);
+    setTimeout(function(){
+      try {
+        if(window.V54_VIEWS.indexOf(v) !== -1){
+          v54_inyectarTabs(v);
+          // Asegurarse de que el item "Cotizador (interno)" del sidebar quede activo en ambos casos
+          document.querySelectorAll('#nav-comercial .nav-i').forEach(function(it){
+            if(/Cotizador/i.test(it.textContent) && /interno/i.test(it.textContent)){
+              document.querySelectorAll('.nav-i').forEach(function(n){ n.classList.remove('active'); });
+              it.classList.add('active');
+            }
+          });
+          // Cambiar el título de la vista
+          const vt = document.getElementById('vtitle');
+          if(vt){
+            vt.textContent = v === 'amoblados-cotizador' ? '📊 Cotizador (interno)' : '📦 Adicionales';
+          }
+        }
+      } catch(e){ console.warn('V54 tabs:', e); }
+    }, 200);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
