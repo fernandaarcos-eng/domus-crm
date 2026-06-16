@@ -9216,6 +9216,99 @@ window.deleteContratoCliente = function(clienteKey, tipo){
     }, 380);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V51: Sincronizar stage del pipeline con el paso ══════
+// ═══════════════════════════════════════════════════════════
+
+window.MAPEO_PASO_A_STAGE = {
+  0:  'prospecto',                 // Contacto inicial
+  1:  'reunion_cursada',           // Reunión
+  2:  'correo_datos',              // Correo solicitud enviado
+  3:  'correo_datos',              // Correo solicitud recibido
+  4:  'contrato_enviado',          // Contrato administración enviado
+  5:  'amob_contrato_firmado',     // Contrato amoblado firmado
+  6:  'amob_proceso',              // Llaves recibidas → Amoblado
+  7:  'amob_proceso',              // Amoblado en proceso
+  8:  'foto_tomada',               // Sesión fotográfica
+  9:  'foto_editada',              // Fotos editadas
+  10: 'cliente_activo'             // Bienvenida propietario
+};
+
+window.actualizarStageV51 = function(l){
+  if(!l) return;
+  let idx = 0;
+  // 1) paso_N en etapa
+  if(typeof l.etapa === 'string' && l.etapa.indexOf('paso_') === 0){
+    idx = parseInt(l.etapa.replace('paso_','')) || 0;
+  } else if(l.checks && l.checks.length){
+    // 2) último check marcado
+    let last = -1;
+    l.checks.forEach(function(v,i){ if(v) last = i; });
+    if(last >= 0) idx = last;
+  }
+  const newStage = window.MAPEO_PASO_A_STAGE[idx];
+  if(newStage) l.stage = newStage;
+};
+
+// Wrappear toggleCheck
+(function(){
+  const __toggleOrig = window.toggleCheck;
+  if(typeof __toggleOrig !== 'function') return;
+  window.toggleCheck = function(id, idx, val){
+    __toggleOrig(id, idx, val);
+    const l = leads.find(function(x){ return x.id === id; });
+    if(!l) return;
+    window.actualizarStageV51(l);
+    try { saveData(); } catch(e){}
+    try {
+      if(typeof currentView !== 'undefined' && currentView === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+    } catch(e){}
+  };
+})();
+
+// Wrappear setEtapaV49
+(function(){
+  const __setEtapaOrig = window.setEtapaV49;
+  if(typeof __setEtapaOrig !== 'function') return;
+  window.setEtapaV49 = function(id, idxStr){
+    __setEtapaOrig(id, idxStr);
+    const l = leads.find(function(x){ return x.id === id; });
+    if(!l) return;
+    window.actualizarStageV51(l);
+    try { saveData(); } catch(e){}
+    try {
+      if(typeof currentView !== 'undefined' && currentView === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+    } catch(e){}
+  };
+})();
+
+// Migrar los 140 leads
+function migrarV51(){
+  if(!leads || !leads.length) return;
+  let cambios = 0;
+  leads.forEach(function(l){
+    if(l._migrated_v51) return;
+    const stageAntes = l.stage;
+    window.actualizarStageV51(l);
+    if(l.stage !== stageAntes) cambios++;
+    l._migrated_v51 = true;
+  });
+  if(cambios > 0){
+    console.log('V51: ' + cambios + ' leads actualizados (stage del pipeline)');
+    try { saveData(); } catch(e){}
+    try {
+      if(typeof currentView !== 'undefined' && currentView === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+    } catch(e){}
+  } else {
+    console.log('V51: stages ya sincronizados');
+  }
+}
+function tryMigrarV51(r){
+  r = r || 0;
+  if(typeof leads !== 'undefined' && leads && leads.length){ migrarV51(); }
+  else if(r < 15) setTimeout(function(){ tryMigrarV51(r+1); }, 800);
+}
+setTimeout(tryMigrarV51, 5500);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
