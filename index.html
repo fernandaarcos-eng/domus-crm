@@ -8639,6 +8639,66 @@ function tryMigrarV49(r){
   else if(r < 15) setTimeout(function(){ tryMigrarV49(r+1); }, 800);
 }
 setTimeout(tryMigrarV49, 4000);
+  // ═══ V49.1 FIX: try/catch en re-render de V49 ═══
+
+(function(){
+  if(typeof window.toggleCheck !== 'function') return;
+  const __toggleV491 = window.toggleCheck;
+  window.toggleCheck = function(id, idx, val){
+    const l = leads.find(function(x){ return x.id === id; });
+    if(!l) return;
+    if(!l.checks || l.checks.length !== 11) l.checks = new Array(11).fill(false);
+    if(val){
+      for(let i = 0; i <= idx; i++) l.checks[i] = true;
+    } else {
+      for(let i = idx; i < 11; i++) l.checks[i] = false;
+    }
+    let last = -1;
+    l.checks.forEach(function(v,i){ if(v) last = i; });
+    l.etapa = last >= 0 ? 'paso_' + last : 'paso_0';
+    if(typeof window.logAction === 'function'){
+      try { window.logAction(id, (val?'✅ Marcó':'⬜ Desmarcó') + ' paso ' + (idx+1) + ': ' + window.PASOS_V49[idx].text); } catch(e){}
+    }
+    try { saveData(); } catch(e){ console.warn('V49.1 saveData:', e); }
+    // Solo re-renderizar si la vista actual lo necesita
+    try {
+      if(typeof currentView !== 'undefined' && currentView === 'pipeline' && typeof renderPipeline === 'function'){
+        renderPipeline();
+      }
+    } catch(e){ console.warn('V49.1 renderPipeline:', e); }
+    try {
+      if(typeof selectedId !== 'undefined' && selectedId === id && document.querySelector('.modal,#md')){
+        if(typeof renderModal === 'function') renderModal();
+      }
+    } catch(e){ console.warn('V49.1 renderModal:', e); }
+    try {
+      if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+        renderClientePerfil(window.perfilCurrentLeadId);
+      }
+    } catch(e){ console.warn('V49.1 renderClientePerfil:', e); }
+  };
+})();
+
+// Mismo try/catch para setEtapaV49
+window.setEtapaV49 = function(id, idxStr){
+  const l = leads.find(function(x){ return x.id === id; });
+  if(!l) return;
+  const idx = parseInt(idxStr);
+  if(window.aplicarCascadaV49) window.aplicarCascadaV49(l, idx);
+  if(typeof window.logAction === 'function'){
+    try { window.logAction(id, 'Cambió etapa a paso ' + (idx+1) + ': ' + window.PASOS_V49[idx].text); } catch(e){}
+  }
+  try { saveData(); } catch(e){}
+  try {
+    if(typeof currentView !== 'undefined' && currentView === 'pipeline' && typeof renderPipeline === 'function') renderPipeline();
+  } catch(e){}
+  try {
+    if(typeof renderModal === 'function' && document.querySelector('.modal,#md')) renderModal();
+  } catch(e){}
+  try {
+    if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function') renderClientePerfil(window.perfilCurrentLeadId);
+  } catch(e){}
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
