@@ -9886,6 +9886,189 @@ window.__V56_RENDERING = false;
     }, 450);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V57: Archivos en IndexedDB + ver/borrar funcional ════
+// ═══════════════════════════════════════════════════════════
+
+window.V57_DB = 'domus_files';
+window.V57_STORE = 'files';
+
+window.v57_openDB = function(){
+  return new Promise(function(resolve, reject){
+    const req = indexedDB.open(window.V57_DB, 1);
+    req.onupgradeneeded = function(e){
+      const db = e.target.result;
+      if(!db.objectStoreNames.contains(window.V57_STORE)){
+        db.createObjectStore(window.V57_STORE);
+      }
+    };
+    req.onsuccess = function(){ resolve(req.result); };
+    req.onerror = function(){ reject(req.error); };
+  });
+};
+
+window.v57_saveFile = function(key, fileData){
+  return window.v57_openDB().then(function(db){
+    return new Promise(function(resolve, reject){
+      const tx = db.transaction(window.V57_STORE, 'readwrite');
+      tx.objectStore(window.V57_STORE).put(fileData, key);
+      tx.oncomplete = function(){ resolve(); };
+      tx.onerror = function(){ reject(tx.error); };
+    });
+  });
+};
+
+window.v57_getFile = function(key){
+  return window.v57_openDB().then(function(db){
+    return new Promise(function(resolve){
+      const tx = db.transaction(window.V57_STORE, 'readonly');
+      const req = tx.objectStore(window.V57_STORE).get(key);
+      req.onsuccess = function(){ resolve(req.result || null); };
+      req.onerror = function(){ resolve(null); };
+    });
+  });
+};
+
+window.v57_deleteFile = function(key){
+  return window.v57_openDB().then(function(db){
+    return new Promise(function(resolve){
+      const tx = db.transaction(window.V57_STORE, 'readwrite');
+      tx.objectStore(window.V57_STORE).delete(key);
+      tx.oncomplete = function(){ resolve(); };
+      tx.onerror = function(){ resolve(); };
+    });
+  });
+};
+
+// === Upload ===
+window.uploadContratoDepto = function(leadId, tipo, input){
+  if(!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if(file.size > 20*1024*1024){ if(typeof toast==='function')toast('⚠️ Máx 20MB'); return; }
+  if(typeof toast==='function') toast('⏳ Subiendo...');
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const fileKey = 'f_' + leadId + '_' + tipo + '_' + Date.now();
+    window.v57_saveFile(fileKey, {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      data: e.target.result,
+      fecha: new Date().toLocaleDateString('es-CL')
+    }).then(function(){
+      const l = leads.find(function(x){ return x.id === leadId; });
+      if(!l) return;
+      // Borrar archivo anterior si existe
+      if(l[tipo] && l[tipo].fileKey){
+        window.v57_deleteFile(l[tipo].fileKey).catch(function(){});
+      }
+      // Guardar solo metadata + referencia
+      l[tipo] = {
+        fileKey: fileKey,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        fecha: new Date().toLocaleDateString('es-CL')
+      };
+      saveData();
+      if(typeof toast==='function') toast('✅ ' + file.name + ' (' + (file.size/1024/1024).toFixed(1) + ' MB)');
+      if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+    }).catch(function(err){
+      console.error('V57 save:', err);
+      if(typeof toast==='function') toast('⚠️ Error al guardar');
+    });
+  };
+  reader.readAsDataURL(file);
+};
+
+// === Ver / descargar ===
+window.verArchivoV57 = function(leadId, tipo, modo){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !l[tipo]){ if(typeof toast==='function')toast('⚠️ No hay archivo'); return; }
+  const f = l[tipo];
+
+  function abrirBlob(blob, name){
+    const url = URL.createObjectURL(blob);
+    if(modo === 'download'){
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } else {
+      window.open(url, '_blank');
+    }
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  }
+
+  function dataURLtoBlob(dataURL){
+    return fetch(dataURL).then(function(r){ return r.blob(); });
+  }
+
+  // Caso legacy: data URL en el lead
+  if(f.data && !f.fileKey){
+    dataURLtoBlob(f.data).then(function(b){ abrirBlob(b, f.name); }).catch(function(err){
+      console.error('legacy blob:', err);
+      if(typeof toast==='function') toast('⚠️ No se pudo abrir');
+    });
+    return;
+  }
+
+  // Nuevo: leer de IndexedDB
+  if(!f.fileKey){ if(typeof toast==='function')toast('⚠️ Sin referencia'); return; }
+  window.v57_getFile(f.fileKey).then(function(file){
+    if(!file){ if(typeof toast==='function')toast('⚠️ Archivo no encontrado'); return; }
+    dataURLtoBlob(file.data).then(function(b){ abrirBlob(b, file.name); }).catch(function(err){
+      console.error('open blob:', err);
+      if(typeof toast==='function') toast('⚠️ Error abriendo');
+    });
+  });
+};
+
+// === Eliminar ===
+window.deleteContratoDepto = function(leadId, tipo){
+  if(!confirm('¿Borrar este contrato?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !l[tipo]){ if(typeof toast==='function')toast('⚠️ Nada que borrar'); return; }
+  const fileKey = l[tipo].fileKey;
+  delete l[tipo];
+  saveData();
+  if(fileKey){
+    window.v57_deleteFile(fileKey).catch(function(){});
+  }
+  if(typeof toast==='function') toast('🗑️ Eliminado');
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+};
+
+// === Re-render con botones javascript: en lugar de data URL ===
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __orig(currentId);
+    setTimeout(function(){
+      try {
+        // Reemplazar links de descargar/abrir
+        document.querySelectorAll('.section-contratos-v56 a, .section-contratos-v55 a').forEach(function(a){
+          const href = a.getAttribute('href') || '';
+          const txt = a.textContent.trim();
+          if(href.startsWith('data:') || href.startsWith('blob:')){
+            // Buscar el botón delete cercano para extraer leadId y tipo
+            const btnDel = a.closest('div').querySelector('button[onclick*="deleteContratoDepto"]');
+            if(!btnDel) return;
+            const m = (btnDel.getAttribute('onclick')||'').match(/deleteContratoDepto\((\d+),\s*['\"]([^'\"]+)['\"]/);
+            if(!m) return;
+            const leadId = parseInt(m[1]);
+            const tipo = m[2];
+            const modo = /Descargar|↓/i.test(txt) ? 'download' : 'open';
+            a.setAttribute('href', 'javascript:void(0)');
+            a.onclick = function(e){ e.preventDefault(); window.verArchivoV57(leadId, tipo, modo); };
+          }
+        });
+      } catch(e){ console.warn('V57 rewire:', e); }
+    }, 700);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
