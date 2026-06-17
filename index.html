@@ -9652,6 +9652,63 @@ window.deleteContratoDepto = function(leadId, tipo){
     }, 380);
   };
 })();
+  // ═══ V55.1 FIX: address en vez de depto ═══
+
+// Helper común
+window.nombreDeptoV55 = function(d){
+  return d.address || d.direccion || d.calle || d.nombre_depto || ('Depto #' + d.id);
+};
+
+// Re-renderizar el perfil sustituyendo etiquetas "Depto N" por address real
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __orig(currentId);
+    setTimeout(function(){
+      try {
+        const cliente = leads.find(function(x){ return x.id === currentId; });
+        if(!cliente) return;
+        const key = (typeof getClienteKey==='function') ? getClienteKey(cliente) : '';
+        const deptos = (typeof getDeptosCliente==='function') ? getDeptosCliente(key) : [cliente];
+
+        // 1) Arreglar checkboxes "Asociada a estos deptos" dentro de cuentas
+        document.querySelectorAll('.section-cuentas-v55 label input[type=checkbox]').forEach(function(cb){
+          const onch = cb.getAttribute('onchange') || '';
+          const m = onch.match(/toggleCtaDeptoV55\([^,]+,\s*[^,]+,\s*(\d+)\)/);
+          if(!m) return;
+          const deptoId = parseInt(m[1]);
+          const d = deptos.find(function(x){ return x.id === deptoId; });
+          if(!d) return;
+          const span = cb.parentNode.querySelector('span');
+          if(span){
+            const nombre = window.nombreDeptoV55(d);
+            span.textContent = nombre.length > 32 ? nombre.slice(0,32) + '…' : nombre;
+            span.setAttribute('title', nombre);
+          }
+        });
+
+        // 2) Arreglar bloques "🏠 Depto X" en CONTRATOS POR DEPARTAMENTO
+        const sec = document.querySelector('.section-contratos-v55');
+        if(sec){
+          // Cada bloque envuelve un depto: buscamos divs hijos con el título 🏠
+          const bloques = sec.querySelectorAll(':scope > div');
+          let idx = 0;
+          bloques.forEach(function(bl){
+            const head = bl.querySelector('.N');
+            if(!head) return;
+            // Encontrar el depto correspondiente por orden
+            const d = deptos[idx];
+            idx++;
+            if(!d) return;
+            const nombre = window.nombreDeptoV55(d);
+            head.innerHTML = '🏠 ' + nombre;
+          });
+        }
+      } catch(e){ console.warn('V55.1 fix:', e); }
+    }, 500);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
