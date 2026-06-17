@@ -9709,6 +9709,183 @@ window.nombreDeptoV55 = function(d){
     }, 500);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V56: Fix robusto - contratos por depto con address ══
+// ═══════════════════════════════════════════════════════════
+
+window.deptoNombreV56 = function(d){
+  return d.address || d.direccion || d.calle || d.nombre_depto || ('Depto #' + d.id);
+};
+
+// ── Contratos por depto (sobrescribe V55/V51) ──
+window.uploadContratoDepto = function(leadId, tipo, input){
+  if(!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if(file.size > 8*1024*1024){ if(typeof toast==='function')toast('⚠️ Máx 8MB'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const l = leads.find(function(x){ return x.id === leadId; });
+    if(!l) return;
+    l[tipo] = { name:file.name, type:file.type, size:file.size, data:e.target.result, fecha:new Date().toLocaleDateString('es-CL') };
+    saveData();
+    if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+    if(typeof toast==='function') toast('📄 Contrato guardado');
+  };
+  reader.readAsDataURL(file);
+};
+window.deleteContratoDepto = function(leadId, tipo){
+  if(!confirm('¿Borrar este contrato?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  delete l[tipo];
+  saveData();
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+  if(typeof toast==='function') toast('🗑️ Eliminado');
+};
+
+// Flag anti re-entrada
+window.__V56_RENDERING = false;
+
+// Sobrescribir el render para usar address + deduplicar deptos
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __orig(currentId);
+    if(window.__V56_RENDERING) return;
+    window.__V56_RENDERING = true;
+    setTimeout(function(){
+      try {
+        const cliente = leads.find(function(x){ return x.id === currentId; });
+        if(!cliente){ window.__V56_RENDERING = false; return; }
+        const key = getClienteKey(cliente);
+        let deptos = getDeptosCliente(key);
+        // Deduplicar por id
+        const vistos = {};
+        deptos = deptos.filter(function(d){
+          if(vistos[d.id]) return false;
+          vistos[d.id] = true;
+          return true;
+        });
+        const mc = document.getElementById('mc');
+        if(!mc){ window.__V56_RENDERING = false; return; }
+
+        // Limpiar TODAS las versiones (incluida V55 y V56 previas)
+        mc.querySelectorAll('.section-cuenta-cliente, .section-contratos-cliente, .section-cuentas-v50, .section-contratos-v50, .section-cuentas-v55, .section-contratos-v55, .section-cuentas-v56, .section-contratos-v56').forEach(function(v){ v.remove(); });
+
+        // === CUENTAS BANCARIAS ===
+        const cuentas = (window.getCuentasV55 ? window.getCuentasV55(deptos) : []);
+        const sec = document.createElement('div');
+        sec.className = 'section-cuentas-v56';
+        sec.style.cssText = 'margin-top:14px';
+        let cuentasHtml = '';
+        cuentas.forEach(function(c, idx){
+          const deptosCheckboxes = deptos.map(function(d){
+            const checked = (c.deptos_ids||[]).indexOf(d.id) !== -1 ? 'checked' : '';
+            const nombreD = window.deptoNombreV56(d);
+            return '<label style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:11px;cursor:pointer"><input type="checkbox" ' + checked + ' onchange="toggleCtaDeptoV55(\'' + key + '\',\'' + c.id + '\',' + d.id + ')"><span title="' + nombreD.replace(/"/g,'&quot;') + '">' + (nombreD.length>32?nombreD.slice(0,32)+'…':nombreD) + '</span></label>';
+          }).join('');
+          cuentasHtml += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #16a34a;border-radius:var(--rsm);margin-bottom:10px;overflow:hidden">' +
+            '<div onclick="toggleCtaPlegarV55(\'' + c.id + '\')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(22,163,74,.06);user-select:none">' +
+              '<div style="display:flex;align-items:center;gap:10px">' +
+                '<span id="cta-arr-v55-' + c.id + '" style="font-size:11px;color:#16a34a;width:14px">' + (idx===0?'▼':'▶') + '</span>' +
+                '<span style="font-size:13px;font-weight:800;color:#15803d">💳 ' + (c.nombre||('Cuenta '+(idx+1))) + '</span>' +
+                (c.banco ? '<span style="font-size:10px;color:var(--text2);font-weight:600">' + c.banco + (c.numero?' · '+c.numero:'') + '</span>' : '') +
+              '</div>' +
+              '<button onclick="event.stopPropagation();eliminarCtaV55(\'' + key + '\',\'' + c.id + '\')" style="background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>' +
+            '</div>' +
+            '<div id="cta-body-v55-' + c.id + '" style="padding:14px 18px;display:' + (idx===0?'block':'none') + '">' +
+              '<div class="field"><label>📝 Nombre</label><input value="' + (c.nombre||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'nombre\',this.value)"></div>' +
+              '<div class="field"><label>👤 Titular</label><input value="' + (c.titular||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'titular\',this.value)"></div>' +
+              '<div class="field"><label>🪪 RUT</label><input value="' + (c.rut||'').replace(/"/g,'&quot;') + '" placeholder="12.345.678-9" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'rut\',this.value)"></div>' +
+              '<div class="frow">' +
+                '<div class="field"><label>🏦 Banco</label><input value="' + (c.banco||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'banco\',this.value)"></div>' +
+                '<div class="field"><label>📋 Tipo</label><select onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'tipo\',this.value)"><option value="">—</option>' +
+                  ['Cuenta Corriente','Cuenta Vista','Cuenta de Ahorro','Cuenta Rut'].map(function(t){return '<option '+(c.tipo===t?'selected':'')+'>'+t+'</option>'}).join('') + '</select></div>' +
+              '</div>' +
+              '<div class="field"><label>🔢 Número</label><input value="' + (c.numero||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'numero\',this.value)"></div>' +
+              '<div class="field"><label>📧 Email</label><input value="' + (c.email||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'email\',this.value)"></div>' +
+              '<div class="field"><label>📝 Notas</label><textarea rows="2" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'notas\',this.value)">' + (c.notas||'') + '</textarea></div>' +
+              (deptos.length > 1 ? '<div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:8px"><div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:6px">🏠 Asociada a estos deptos</div>' + deptosCheckboxes + '</div>' : '') +
+            '</div>' +
+          '</div>';
+        });
+        if(cuentas.length === 0){
+          cuentasHtml = '<div style="padding:18px;text-align:center;color:var(--text2);font-size:12px;background:var(--surface);border:2px dashed var(--border);border-radius:var(--rsm)">Sin cuentas bancarias registradas</div>';
+        }
+        sec.innerHTML = 
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+            '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">💳 Cuentas bancarias' + (cuentas.length>0?' ('+cuentas.length+')':'') + '</div>' +
+            '<button onclick="agregarCtaV55(\'' + key + '\')" class="btn btn-sm btn-p" style="padding:6px 12px;font-size:11px">+ Agregar cuenta</button>' +
+          '</div>' + cuentasHtml;
+        const cards = mc.querySelectorAll('div[style*="background:var(--surface)"][style*="border-radius:var(--r)"]');
+        let insertAfter = null;
+        cards.forEach(function(c){ if(c.textContent.includes('Datos personales')) insertAfter = c; });
+        if(insertAfter) insertAfter.parentNode.insertBefore(sec, insertAfter.nextSibling);
+        else mc.appendChild(sec);
+
+        // === CONTRATOS POR DEPTO ===
+        function tarjetaC(leadId, tipo, label, color, contrato){
+          if(contrato){
+            const esImg = (contrato.type||'').includes('image');
+            return '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ' + color + ';border-radius:var(--rsm);padding:11px 13px">' +
+              '<div style="font-size:10px;font-weight:900;color:' + color + ';margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">' + label + '</div>' +
+              '<div style="display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--bg);border-radius:6px">' +
+                (esImg ? '<img src="' + contrato.data + '" style="width:44px;height:44px;object-fit:cover;border-radius:6px">' : '<div style="width:44px;height:44px;background:' + color + ';border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">📄</div>') +
+                '<div style="flex:1;min-width:0">' +
+                  '<div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + contrato.name + '</div>' +
+                  '<div style="display:flex;gap:8px;margin-top:2px">' +
+                    '<a href="' + contrato.data + '" download="' + contrato.name + '" style="font-size:10px;color:#2563eb;font-weight:700;text-decoration:none">↓ Descargar</a>' +
+                    '<a href="' + contrato.data + '" target="_blank" style="font-size:10px;color:#2563eb;font-weight:700;text-decoration:none">↗ Abrir</a>' +
+                  '</div>' +
+                '</div>' +
+                '<button onclick="deleteContratoDepto(' + leadId + ',\'' + tipo + '\')" style="background:none;border:2px solid var(--border2);color:#dc2626;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px">🗑️</button>' +
+              '</div>' +
+            '</div>';
+          }
+          return '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ' + color + ';border-radius:var(--rsm);padding:11px 13px">' +
+            '<div style="font-size:10px;font-weight:900;color:' + color + ';margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">' + label + '</div>' +
+            '<label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:12px;background:#fff;border:2px dashed ' + color + ';color:' + color + ';border-radius:var(--rsm);font-size:11px;font-weight:700">' +
+              '📎 Subir archivo' +
+              '<input type="file" accept=".pdf,image/*" style="display:none" onchange="uploadContratoDepto(' + leadId + ',\'' + tipo + '\',this)">' +
+            '</label>' +
+          '</div>';
+        }
+
+        const sec2 = document.createElement('div');
+        sec2.className = 'section-contratos-v56';
+        sec2.style.cssText = 'margin-top:14px';
+        let html = 
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+            '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">📄 Contratos por departamento (' + deptos.length + ')</div>' +
+            '<span style="font-size:9px;color:var(--text3);font-style:italic">Máx 8MB por archivo</span>' +
+          '</div>';
+        deptos.forEach(function(d){
+          const esAdminAmob = d.tipo_contrato === 'admin_amob';
+          const nombreD = window.deptoNombreV56(d);
+          // Migrar contratos viejos
+          if(!d.contrato_admin_depto && d.contrato_admin_cliente) d.contrato_admin_depto = d.contrato_admin_cliente;
+          if(!d.contrato_amob_depto && d.contrato_amob_cliente) d.contrato_amob_depto = d.contrato_amob_cliente;
+          html += 
+            '<div style="background:var(--bg);border:2px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px">' +
+              '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">' +
+                '<div style="width:8px;height:8px;background:#7c3aed;border-radius:50%;flex-shrink:0"></div>' +
+                '<div style="font-size:12px;font-weight:900;color:var(--text)">🏠 ' + nombreD + '</div>' +
+                '<span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + (esAdminAmob?'Admin + Amoblado':'Solo Administración') + '</span>' +
+              '</div>' +
+              '<div style="display:grid;grid-template-columns:' + (esAdminAmob?'1fr 1fr':'1fr') + ';gap:8px">' +
+                tarjetaC(d.id, 'contrato_admin_depto', '📄 Contrato Administración', '#2563eb', d.contrato_admin_depto) +
+                (esAdminAmob ? tarjetaC(d.id, 'contrato_amob_depto', '🛋️ Contrato Amoblado', '#7c3aed', d.contrato_amob_depto) : '') +
+              '</div>' +
+            '</div>';
+        });
+        sec2.innerHTML = html;
+        sec.parentNode.insertBefore(sec2, sec.nextSibling);
+      } catch(e){ console.warn('V56:', e); }
+      window.__V56_RENDERING = false;
+    }, 450);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
