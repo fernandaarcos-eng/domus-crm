@@ -10069,6 +10069,76 @@ window.deleteContratoDepto = function(leadId, tipo){
     }, 700);
   };
 })();
+  // ═══ V58: Fix delete - eliminar archivo de forma definitiva ═══
+
+window.deleteContratoDepto = function(leadId, tipo){
+  if(!confirm('¿Borrar este contrato?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+
+  // Capturar fileKeys antes de borrar
+  const fileKeysToDel = [];
+  ['contrato_admin_depto','contrato_amob_depto','contrato_admin_cliente','contrato_amob_cliente'].forEach(function(field){
+    if(l[field] && l[field].fileKey) fileKeysToDel.push(l[field].fileKey);
+  });
+
+  // Borrar el campo principal Y su equivalente legacy
+  delete l[tipo];
+  const legacyMap = {
+    'contrato_admin_depto': 'contrato_admin_cliente',
+    'contrato_amob_depto': 'contrato_amob_cliente'
+  };
+  if(legacyMap[tipo]) delete l[legacyMap[tipo]];
+
+  // Marcar como "eliminado por el usuario" para que V56 no lo restaure
+  if(!l._contratos_eliminados) l._contratos_eliminados = {};
+  l._contratos_eliminados[tipo] = true;
+  if(legacyMap[tipo]) l._contratos_eliminados[legacyMap[tipo]] = true;
+
+  // Borrar archivos de IndexedDB en paralelo
+  fileKeysToDel.forEach(function(key){
+    if(window.v57_deleteFile) window.v57_deleteFile(key).catch(function(){});
+  });
+
+  saveData();
+  if(typeof toast==='function') toast('🗑️ Eliminado');
+
+  // Force re-render limpio
+  window.__V56_RENDERING = false;
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+    renderClientePerfil(window.perfilCurrentLeadId);
+  }
+};
+
+// Sobreescribir render: respetar eliminaciones del usuario
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    // Antes de renderizar, asegurar que los contratos eliminados sigan eliminados
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(cliente){
+      const key = getClienteKey(cliente);
+      const deptos = getDeptosCliente(key);
+      deptos.forEach(function(d){
+        if(d._contratos_eliminados){
+          Object.keys(d._contratos_eliminados).forEach(function(field){
+            if(d._contratos_eliminados[field]) delete d[field];
+          });
+        }
+      });
+    }
+    __orig(currentId);
+  };
+})();
+
+// Función pública para "deshacer eliminación" (restaurar el flag)
+window.permitirRestaurarContrato = function(leadId, tipo){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !l._contratos_eliminados) return;
+  delete l._contratos_eliminados[tipo];
+  saveData();
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
