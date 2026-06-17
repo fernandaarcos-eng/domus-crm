@@ -10139,6 +10139,143 @@ window.permitirRestaurarContrato = function(leadId, tipo){
   delete l._contratos_eliminados[tipo];
   saveData();
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ V59: Notas de reuniones Gemini en perfil cliente ════
+// ═══════════════════════════════════════════════════════════
+
+window.getNotasGeminiV59 = function(deptos){
+  for(let i = 0; i < deptos.length; i++){
+    if(Array.isArray(deptos[i].notas_gemini) && deptos[i].notas_gemini.length > 0){
+      return deptos[i].notas_gemini.slice();
+    }
+  }
+  return [];
+};
+
+window.guardarNotasGeminiV59 = function(clienteKey, notas){
+  const deptos = getDeptosCliente(clienteKey);
+  deptos.forEach(function(l){ l.notas_gemini = JSON.parse(JSON.stringify(notas)); });
+  saveData();
+};
+
+window.agregarNotaGeminiV59 = function(clienteKey){
+  const notas = window.getNotasGeminiV59(getDeptosCliente(clienteKey));
+  notas.unshift({
+    id: 'nota_' + Date.now() + '_' + Math.floor(Math.random()*999),
+    fecha: new Date().toISOString().slice(0,10),
+    titulo: '',
+    link: '',
+    texto: '',
+    creado: new Date().toISOString()
+  });
+  window.guardarNotasGeminiV59(clienteKey, notas);
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+  if(typeof toast==='function') toast('📝 Nota agregada');
+};
+
+window.updNotaGeminiV59 = function(clienteKey, notaId, field, val){
+  const notas = window.getNotasGeminiV59(getDeptosCliente(clienteKey));
+  const n = notas.find(function(x){ return x.id === notaId; });
+  if(!n) return;
+  n[field] = val;
+  window.guardarNotasGeminiV59(clienteKey, notas);
+};
+
+window.eliminarNotaGeminiV59 = function(clienteKey, notaId){
+  if(!confirm('¿Eliminar esta nota de reunión?')) return;
+  let notas = window.getNotasGeminiV59(getDeptosCliente(clienteKey)).filter(function(n){ return n.id !== notaId; });
+  window.guardarNotasGeminiV59(clienteKey, notas);
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+  if(typeof toast==='function') toast('🗑️ Nota eliminada');
+};
+
+window.toggleNotaPlegarV59 = function(notaId){
+  const body = document.getElementById('nota-body-v59-' + notaId);
+  const arr = document.getElementById('nota-arr-v59-' + notaId);
+  if(!body) return;
+  const oculto = body.style.display === 'none';
+  body.style.display = oculto ? 'block' : 'none';
+  if(arr) arr.textContent = oculto ? '▼' : '▶';
+};
+
+function v59_normLink(url){
+  if(!url) return '';
+  url = url.trim();
+  if(!url) return '';
+  if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  return url;
+}
+
+// Render en perfil
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __orig(currentId);
+    setTimeout(function(){
+      try {
+        const cliente = leads.find(function(x){ return x.id === currentId; });
+        if(!cliente) return;
+        const key = getClienteKey(cliente);
+        const deptos = getDeptosCliente(key);
+        const mc = document.getElementById('mc');
+        if(!mc) return;
+
+        // Quitar anteriores
+        mc.querySelectorAll('.section-notas-gemini-v59').forEach(function(v){ v.remove(); });
+
+        const notas = window.getNotasGeminiV59(deptos);
+
+        const sec = document.createElement('div');
+        sec.className = 'section-notas-gemini-v59';
+        sec.style.cssText = 'margin-top:14px';
+
+        let notasHtml = '';
+        if(notas.length === 0){
+          notasHtml = '<div style="padding:18px;text-align:center;color:var(--text2);font-size:12px;background:var(--surface);border:2px dashed var(--border);border-radius:var(--rsm)">Aún no hay notas de reuniones. Click en <b>+ Agregar nota</b> para empezar.</div>';
+        } else {
+          notas.forEach(function(n, idx){
+            const linkLimpio = v59_normLink(n.link);
+            const fechaFmt = n.fecha ? new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-CL') : 'Sin fecha';
+            const titMuestra = n.titulo || 'Reunión ' + (idx+1);
+            notasHtml += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #4285f4;border-radius:var(--rsm);margin-bottom:10px;overflow:hidden">' +
+              '<div onclick="toggleNotaPlegarV59(\'' + n.id + '\')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(66,133,244,.06);user-select:none">' +
+                '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">' +
+                  '<span id="nota-arr-v59-' + n.id + '" style="font-size:11px;color:#4285f4;width:14px;flex-shrink:0">' + (idx===0?'▼':'▶') + '</span>' +
+                  '<span style="font-size:18px;flex-shrink:0">📝</span>' +
+                  '<span style="font-size:13px;font-weight:800;color:#1e40af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + titMuestra + '</span>' +
+                  '<span style="font-size:10px;color:var(--text2);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border);flex-shrink:0">' + fechaFmt + '</span>' +
+                  (linkLimpio ? '<a href="' + linkLimpio + '" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:#4285f4;font-weight:700;text-decoration:none;flex-shrink:0">↗ Abrir doc</a>' : '') +
+                '</div>' +
+                '<button onclick="event.stopPropagation();eliminarNotaGeminiV59(\'' + key + '\',\'' + n.id + '\')" style="background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer;margin-left:8px;flex-shrink:0">🗑️</button>' +
+              '</div>' +
+              '<div id="nota-body-v59-' + n.id + '" style="padding:14px 18px;display:' + (idx===0?'block':'none') + '">' +
+                '<div class="frow">' +
+                  '<div class="field"><label>📅 Fecha de la reunión</label><input type="date" value="' + (n.fecha||'') + '" onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'fecha\',this.value)"></div>' +
+                  '<div class="field"><label>🎯 Título / Asunto</label><input value="' + (n.titulo||'').replace(/"/g,'&quot;') + '" placeholder="Ej: Presentación servicio amoblado" onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'titulo\',this.value)"></div>' +
+                '</div>' +
+                '<div class="field"><label>🔗 Link al doc de Gemini (Google Doc)</label><input type="url" value="' + (n.link||'').replace(/"/g,'&quot;') + '" placeholder="https://docs.google.com/document/d/..." onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'link\',this.value)"></div>' +
+                '<div class="field"><label>📄 Resumen / Notas</label><textarea rows="6" placeholder="Pega aquí el resumen, action items, decisiones..." onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'texto\',this.value)" style="font-family:inherit;line-height:1.5">' + (n.texto||'') + '</textarea></div>' +
+              '</div>' +
+            '</div>';
+          });
+        }
+
+        sec.innerHTML = 
+          '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">' +
+            '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">📝 Notas de reuniones (Gemini)' + (notas.length>0?' ('+notas.length+')':'') + '</div>' +
+            '<button onclick="agregarNotaGeminiV59(\'' + key + '\')" class="btn btn-sm" style="padding:6px 12px;font-size:11px;background:#4285f4;color:#fff;border:none;font-weight:800;border-radius:6px;cursor:pointer">+ Agregar nota</button>' +
+          '</div>' + notasHtml;
+
+        // Insertar después de las cuentas bancarias (o al final si no existen)
+        const cuentas = mc.querySelector('.section-cuentas-v55, .section-cuentas-v56');
+        if(cuentas) cuentas.parentNode.insertBefore(sec, cuentas.nextSibling);
+        else mc.appendChild(sec);
+
+      } catch(e){ console.warn('V59:', e); }
+    }, 550);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
