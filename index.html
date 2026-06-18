@@ -10276,6 +10276,160 @@ function v59_normLink(url){
     }, 550);
   };
 })();
+  // ═══════════════════════════════════════════════════════════
+// ═══ V60: Save eficiente con debouncing ═══════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.__V60_DEBOUNCE_MS = 1500;
+window.__V60_dirty = false;
+window.__V60_inflight = false;
+window.__V60_lastSave = 0;
+
+// Guardar referencia al saveData original
+if(typeof saveData === 'function' && !window.__V60_origSave){
+  window.__V60_origSave = saveData;
+}
+
+// Reemplazar saveData con versión que sólo marca "dirty"
+window.saveData = function(){
+  window.__V60_dirty = true;
+  window.__V60_lastChange = Date.now();
+  window.__V60_actualizarIndicador('pending');
+};
+
+// Save inmediato (skip debounce) — para casos críticos
+window.saveDataNow = function(){
+  return window.__V60_ejecutarSave();
+};
+
+window.__V60_ejecutarSave = async function(){
+  if(window.__V60_inflight) return;
+  if(typeof window.__V60_origSave !== 'function') return;
+  window.__V60_inflight = true;
+  window.__V60_dirty = false;
+  window.__V60_actualizarIndicador('saving');
+  try {
+    const r = window.__V60_origSave();
+    if(r && typeof r.then === 'function') await r;
+    window.__V60_lastSave = Date.now();
+    window.__V60_actualizarIndicador('saved');
+  } catch(e){
+    console.warn('V60 save error:', e);
+    window.__V60_actualizarIndicador('error');
+    // Si falla, marcar dirty otra vez para reintentar
+    window.__V60_dirty = true;
+  }
+  window.__V60_inflight = false;
+};
+
+// Tick: cada 500ms revisa si necesita guardar
+setInterval(function(){
+  if(!window.__V60_dirty || window.__V60_inflight) return;
+  // Verificar que pasaron al menos DEBOUNCE_MS desde el último cambio
+  const desdeUltimoCambio = Date.now() - (window.__V60_lastChange || 0);
+  if(desdeUltimoCambio < window.__V60_DEBOUNCE_MS) return;
+  window.__V60_ejecutarSave();
+}, 500);
+
+// Save inmediato al cerrar pestaña
+window.addEventListener('beforeunload', function(e){
+  if(window.__V60_dirty){
+    window.__V60_origSave && window.__V60_origSave();
+  }
+});
+
+// Indicador visual
+window.__V60_actualizarIndicador = function(estado){
+  let el = document.getElementById('v60-indicator');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'v60-indicator';
+    el.style.cssText = 'position:fixed;bottom:18px;right:18px;background:#fff;border:1px solid #e5e7eb;padding:8px 14px;border-radius:20px;font-size:11px;font-weight:700;font-family:\'Nunito\',sans-serif;z-index:9000;box-shadow:0 4px 12px rgba(0,0,0,.08);transition:opacity .3s, transform .3s;opacity:0;transform:translateY(10px);pointer-events:none';
+    document.body.appendChild(el);
+  }
+  const ahora = Date.now();
+  if(estado === 'pending'){
+    el.textContent = '✏️ Editando...';
+    el.style.color = '#6b7280';
+    el.style.borderColor = '#e5e7eb';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+  } else if(estado === 'saving'){
+    el.textContent = '💾 Guardando...';
+    el.style.color = '#7c3aed';
+    el.style.borderColor = '#ddd6fe';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+  } else if(estado === 'saved'){
+    el.textContent = '✓ Guardado';
+    el.style.color = '#16a34a';
+    el.style.borderColor = '#bbf7d0';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+    setTimeout(function(){
+      if(el.textContent === '✓ Guardado'){
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(10px)';
+      }
+    }, 2200);
+  } else if(estado === 'error'){
+    el.textContent = '⚠️ Error – reintentando';
+    el.style.color = '#dc2626';
+    el.style.borderColor = '#fecaca';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+  }
+};
+
+// === Borrado optimista mejorado para contratos ===
+const __V60_origDelete = window.deleteContratoDepto;
+window.deleteContratoDepto = function(leadId, tipo){
+  if(!confirm('¿Borrar este contrato?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+
+  // 1. Quitar tarjeta del DOM INMEDIATAMENTE (UI optimista)
+  document.querySelectorAll('button[onclick*="deleteContratoDepto(' + leadId + ',\'' + tipo + '\')"]').forEach(function(btn){
+    const card = btn.closest('div[style*="background:var(--surface)"]');
+    if(card) card.style.transition = 'opacity .2s';
+    if(card) card.style.opacity = '.3';
+  });
+
+  // 2. Capturar fileKeys
+  const fileKeysToDel = [];
+  ['contrato_admin_depto','contrato_amob_depto','contrato_admin_cliente','contrato_amob_cliente'].forEach(function(field){
+    if(l[field] && l[field].fileKey) fileKeysToDel.push(l[field].fileKey);
+  });
+
+  // 3. Borrar campos
+  delete l[tipo];
+  const legacyMap = {
+    'contrato_admin_depto': 'contrato_admin_cliente',
+    'contrato_amob_depto': 'contrato_amob_cliente'
+  };
+  if(legacyMap[tipo]) delete l[legacyMap[tipo]];
+
+  // 4. Marcar como eliminado
+  if(!l._contratos_eliminados) l._contratos_eliminados = {};
+  l._contratos_eliminados[tipo] = true;
+  if(legacyMap[tipo]) l._contratos_eliminados[legacyMap[tipo]] = true;
+
+  // 5. Borrar archivos IndexedDB en background (sin esperar)
+  fileKeysToDel.forEach(function(key){
+    if(window.v57_deleteFile) window.v57_deleteFile(key).catch(function(){});
+  });
+
+  // 6. Marcar dirty (se guardará agrupado)
+  saveData();
+
+  if(typeof toast==='function') toast('🗑️ Eliminado');
+
+  // 7. Re-render limpio
+  window.__V56_RENDERING = false;
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+    setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
+  }
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
