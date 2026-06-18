@@ -10430,6 +10430,260 @@ window.deleteContratoDepto = function(leadId, tipo){
     setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
   }
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ V61: Múltiples comprobantes de pago por depto ═══════
+// ═══════════════════════════════════════════════════════════
+
+window.fmtCLP_V61 = function(n){
+  if(!n || isNaN(n)) return '$0';
+  return '$' + Number(n).toLocaleString('es-CL');
+};
+
+window.getPagosAmobV61 = function(l){
+  if(Array.isArray(l.pagos_amob)) return l.pagos_amob.slice();
+  // Migrar del sistema viejo (V40): pago_amob único
+  if(l.pago_amob){
+    const v = l.pago_amob;
+    return [{
+      id: 'pago_v40_' + l.id,
+      fecha: v.fecha || new Date().toISOString().slice(0,10),
+      monto: v.monto || 0,
+      comprobante: (v.voucher_url || v.fileKey) ? {
+        name: v.voucher_name || 'voucher',
+        type: v.voucher_type || 'application/pdf',
+        fileKey: v.fileKey || null,
+        data: v.voucher_url || v.voucher_data || null,
+        fecha: v.fecha || ''
+      } : null,
+      notas: v.notas || ''
+    }];
+  }
+  return [];
+};
+
+window.guardarPagosAmobV61 = function(leadId, pagos){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  l.pagos_amob = JSON.parse(JSON.stringify(pagos));
+  saveData();
+};
+
+window.agregarPagoV61 = function(leadId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const pagos = window.getPagosAmobV61(l);
+  pagos.push({
+    id: 'pago_' + Date.now() + '_' + Math.floor(Math.random()*999),
+    fecha: new Date().toISOString().slice(0,10),
+    monto: 0,
+    comprobante: null,
+    notas: ''
+  });
+  window.guardarPagosAmobV61(leadId, pagos);
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+  if(typeof toast==='function') toast('💰 Pago agregado');
+};
+
+window.updPagoV61 = function(leadId, pagoId, field, val){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const pagos = window.getPagosAmobV61(l);
+  const p = pagos.find(function(x){ return x.id === pagoId; });
+  if(!p) return;
+  if(field === 'monto') val = parseInt(String(val).replace(/[^\d]/g,'')) || 0;
+  p[field] = val;
+  window.guardarPagosAmobV61(leadId, pagos);
+};
+
+window.eliminarPagoV61 = function(leadId, pagoId){
+  if(!confirm('¿Eliminar este comprobante de pago?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  let pagos = window.getPagosAmobV61(l);
+  const p = pagos.find(function(x){ return x.id === pagoId; });
+  if(p && p.comprobante && p.comprobante.fileKey && window.v57_deleteFile){
+    window.v57_deleteFile(p.comprobante.fileKey).catch(function(){});
+  }
+  pagos = pagos.filter(function(x){ return x.id !== pagoId; });
+  window.guardarPagosAmobV61(leadId, pagos);
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+  if(typeof toast==='function') toast('🗑️ Pago eliminado');
+};
+
+window.uploadComprobantePagoV61 = function(leadId, pagoId, input){
+  if(!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if(file.size > 20*1024*1024){ if(typeof toast==='function')toast('⚠️ Máx 20MB'); return; }
+  if(typeof toast==='function') toast('⏳ Subiendo...');
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const fileKey = 'pago_' + leadId + '_' + pagoId + '_' + Date.now();
+    window.v57_saveFile(fileKey, {
+      name: file.name, type: file.type, size: file.size,
+      data: e.target.result,
+      fecha: new Date().toLocaleDateString('es-CL')
+    }).then(function(){
+      const l = leads.find(function(x){ return x.id === leadId; });
+      if(!l) return;
+      const pagos = window.getPagosAmobV61(l);
+      const p = pagos.find(function(x){ return x.id === pagoId; });
+      if(!p) return;
+      // Borrar archivo anterior si existe
+      if(p.comprobante && p.comprobante.fileKey){
+        window.v57_deleteFile(p.comprobante.fileKey).catch(function(){});
+      }
+      p.comprobante = {
+        fileKey: fileKey,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        fecha: new Date().toLocaleDateString('es-CL')
+      };
+      window.guardarPagosAmobV61(leadId, pagos);
+      if(typeof toast==='function') toast('✅ Comprobante subido');
+      if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+    }).catch(function(err){
+      console.error('V61 save:', err);
+      if(typeof toast==='function') toast('⚠️ Error al guardar');
+    });
+  };
+  reader.readAsDataURL(file);
+};
+
+window.verComprobantePagoV61 = function(leadId, pagoId, modo){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const pagos = window.getPagosAmobV61(l);
+  const p = pagos.find(function(x){ return x.id === pagoId; });
+  if(!p || !p.comprobante){ if(typeof toast==='function')toast('⚠️ Sin comprobante'); return; }
+  const c = p.comprobante;
+  function abrir(blob, name){
+    const url = URL.createObjectURL(blob);
+    if(modo === 'download'){
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+    } else {
+      window.open(url, '_blank');
+    }
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  }
+  if(c.data && !c.fileKey){
+    fetch(c.data).then(function(r){return r.blob()}).then(function(b){ abrir(b, c.name); });
+    return;
+  }
+  if(!c.fileKey) return;
+  window.v57_getFile(c.fileKey).then(function(file){
+    if(!file){ if(typeof toast==='function')toast('⚠️ Archivo no encontrado'); return; }
+    fetch(file.data).then(function(r){return r.blob()}).then(function(b){ abrir(b, file.name); });
+  });
+};
+
+window.eliminarComprobantePagoV61 = function(leadId, pagoId){
+  if(!confirm('¿Borrar el archivo del comprobante? El registro del pago se mantiene.')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const pagos = window.getPagosAmobV61(l);
+  const p = pagos.find(function(x){ return x.id === pagoId; });
+  if(!p || !p.comprobante) return;
+  if(p.comprobante.fileKey && window.v57_deleteFile){
+    window.v57_deleteFile(p.comprobante.fileKey).catch(function(){});
+  }
+  p.comprobante = null;
+  window.guardarPagosAmobV61(leadId, pagos);
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function') renderClientePerfil(window.perfilCurrentLeadId);
+  if(typeof toast==='function') toast('🗑️ Comprobante eliminado');
+};
+
+// Render en perfil
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __orig(currentId);
+    setTimeout(function(){
+      try {
+        const cliente = leads.find(function(x){ return x.id === currentId; });
+        if(!cliente) return;
+        const key = getClienteKey(cliente);
+        const deptos = getDeptosCliente(key);
+        const deptosAmob = deptos.filter(function(d){ return d.tipo_contrato === 'admin_amob'; });
+        const mc = document.getElementById('mc');
+        if(!mc) return;
+
+        // Quitar secciones viejas del pago + V61
+        mc.querySelectorAll('.section-pagos-amob, .section-pago-amob, .section-pagos-v61').forEach(function(v){ v.remove(); });
+
+        if(deptosAmob.length === 0) return;
+
+        const sec = document.createElement('div');
+        sec.className = 'section-pagos-v61';
+        sec.style.cssText = 'margin-top:14px';
+
+        let html = '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">💰 Pagos del amoblado</div>';
+
+        deptosAmob.forEach(function(d){
+          const pagos = window.getPagosAmobV61(d);
+          const total = pagos.reduce(function(s,p){ return s + (parseInt(p.monto)||0); }, 0);
+          const nombreD = d.address || ('Depto #' + d.id);
+
+          html += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #f59e0b;border-radius:var(--rsm);padding:14px 16px;margin-bottom:12px">' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">' +
+              '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">' +
+                '<span style="font-size:11px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🏠 ' + nombreD + '</span>' +
+                '<span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + pagos.length + ' pago' + (pagos.length===1?'':'s') + '</span>' +
+              '</div>' +
+              '<div style="display:flex;align-items:center;gap:10px">' +
+                '<span style="font-size:14px;font-weight:900;color:#d97706">' + window.fmtCLP_V61(total) + '</span>' +
+                '<button onclick="agregarPagoV61(' + d.id + ')" class="btn btn-sm" style="padding:5px 12px;font-size:10px;background:#f59e0b;color:#fff;border:none;font-weight:800;border-radius:6px;cursor:pointer">+ Agregar pago</button>' +
+              '</div>' +
+            '</div>';
+
+          if(pagos.length === 0){
+            html += '<div style="padding:14px;text-align:center;color:var(--text2);font-size:11px;background:var(--bg);border:1px dashed var(--border);border-radius:6px">Sin pagos registrados</div>';
+          } else {
+            pagos.forEach(function(p, idx){
+              const fechaFmt = p.fecha ? new Date(p.fecha + 'T00:00:00').toLocaleDateString('es-CL') : '';
+              html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px">' +
+                '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">' +
+                  '<span style="font-size:11px;font-weight:800;color:var(--text);background:#fff;padding:3px 10px;border-radius:12px;border:1px solid var(--border)">Pago ' + (idx+1) + '</span>' +
+                  '<input type="date" value="' + (p.fecha||'') + '" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'fecha\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px">' +
+                  '<input type="text" value="' + (p.monto||0) + '" placeholder="Monto" oninput="this.value=this.value.replace(/[^\\d]/g,\'\')" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'monto\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;width:120px;font-weight:700">' +
+                  '<button onclick="eliminarPagoV61(' + d.id + ',\'' + p.id + '\')" style="margin-left:auto;background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️ Borrar pago</button>' +
+                '</div>' +
+                '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+                  (p.comprobante ? 
+                    '<div style="flex:1;display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:5px;border:1px solid var(--border)">' +
+                      '<span style="font-size:18px">📄</span>' +
+                      '<div style="flex:1;min-width:0">' +
+                        '<div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + p.comprobante.name + '</div>' +
+                        '<div style="display:flex;gap:8px;margin-top:1px">' +
+                          '<a href="javascript:void(0)" onclick="verComprobantePagoV61(' + d.id + ',\'' + p.id + '\',\'open\')" style="font-size:9px;color:#2563eb;font-weight:700;text-decoration:none">↗ Abrir</a>' +
+                          '<a href="javascript:void(0)" onclick="verComprobantePagoV61(' + d.id + ',\'' + p.id + '\',\'download\')" style="font-size:9px;color:#2563eb;font-weight:700;text-decoration:none">↓ Descargar</a>' +
+                          '<a href="javascript:void(0)" onclick="eliminarComprobantePagoV61(' + d.id + ',\'' + p.id + '\')" style="font-size:9px;color:#dc2626;font-weight:700;text-decoration:none">🗑️ Borrar archivo</a>' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>' :
+                    '<label style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:8px;background:#fff;border:2px dashed #f59e0b;color:#d97706;border-radius:5px;font-size:10px;font-weight:700">📎 Subir comprobante<input type="file" accept=".pdf,image/*" style="display:none" onchange="uploadComprobantePagoV61(' + d.id + ',\'' + p.id + '\',this)"></label>'
+                  ) +
+                '</div>' +
+                '<input type="text" value="' + (p.notas||'').replace(/"/g,'&quot;') + '" placeholder="Notas (opcional)" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'notas\',this.value)" style="font-size:10px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;width:100%">' +
+              '</div>';
+            });
+          }
+
+          html += '</div>';
+        });
+
+        sec.innerHTML = html;
+
+        // Insertar al final del perfil
+        mc.appendChild(sec);
+
+      } catch(e){ console.warn('V61:', e); }
+    }, 600);
+  };
+})();
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
