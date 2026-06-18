@@ -12209,6 +12209,97 @@ setTimeout(function(){
     else if(typeof saveData === 'function') saveData();
   }
 }, 4000);
+  // ═══ V75: Notas en cada comprobante de pago ═══
+
+window.actualizarNotaComprobanteV75 = function(leadId, pagoId, compId, notas){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !Array.isArray(l.pagos_amob)) return;
+  const p = l.pagos_amob.find(function(x){ return x.id === pagoId; });
+  if(!p) return;
+  if(!Array.isArray(p.comprobantes)){
+    p.comprobantes = p.comprobante ? [p.comprobante] : [];
+    delete p.comprobante;
+  }
+  const c = p.comprobantes.find(function(x){ return x.id === compId; });
+  if(!c) return;
+  c.notas = notas;
+  if(typeof saveData === 'function') saveData();
+};
+
+// === Reemplazar inyectarPagosV67 para incluir el textarea de notas ===
+window.inyectarPagosV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const deptosAmob = deptos.filter(function(d){ return d.tipo_contrato === 'admin_amob'; });
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-pagos-v61, .section-pagos-v67').forEach(function(v){ v.remove(); });
+    if(deptosAmob.length === 0) return;
+    
+    const sec = document.createElement('div');
+    sec.className = 'section-pagos-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let html = '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;margin-bottom:10px">💰 Pagos del amoblado</div>';
+    
+    deptosAmob.forEach(function(d){
+      const pagos = window.getPagosAmobV61 ? window.getPagosAmobV61(d) : [];
+      const total = pagos.reduce(function(s,p){ return s + (parseInt(p.monto)||0); }, 0);
+      const nombreD = d.address || ('Depto #' + d.id);
+      html += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #f59e0b;border-radius:var(--rsm);padding:14px 16px;margin-bottom:12px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">' +
+          '<div style="flex:1;min-width:0"><span style="font-size:11px;font-weight:800">🏠 ' + nombreD + '</span> <span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + pagos.length + ' pago' + (pagos.length===1?'':'s') + '</span></div>' +
+          '<div style="display:flex;align-items:center;gap:10px"><span style="font-size:14px;font-weight:900;color:#d97706">$' + total.toLocaleString('es-CL') + '</span><button onclick="agregarPagoV61(' + d.id + ')" style="padding:5px 12px;font-size:10px;background:#f59e0b;color:#fff;border:none;font-weight:800;border-radius:6px;cursor:pointer">+ Agregar pago</button></div>' +
+        '</div>';
+      
+      if(pagos.length === 0){
+        html += '<div style="padding:14px;text-align:center;color:var(--text2);font-size:11px;background:var(--bg);border:1px dashed var(--border);border-radius:6px">Sin pagos</div>';
+      } else {
+        pagos.forEach(function(p, idx){
+          const comps = window.getComprobantesV74 ? window.getComprobantesV74(p) : (p.comprobante ? [p.comprobante] : []);
+          html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px">' +
+            '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap">' +
+              '<span style="font-size:11px;font-weight:800;background:#fff;padding:3px 10px;border-radius:12px;border:1px solid var(--border)">Pago ' + (idx+1) + '</span>' +
+              '<input type="date" value="' + (p.fecha||'') + '" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'fecha\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px">' +
+              '<input type="text" value="' + (p.monto||0) + '" oninput="this.value=this.value.replace(/[^\\d]/g,\'\')" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'monto\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;width:120px;font-weight:700">' +
+              '<button onclick="eliminarPagoV61(' + d.id + ',\'' + p.id + '\')" style="margin-left:auto;background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️ Borrar pago</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">' +
+              '<span style="font-size:10px;color:var(--text2);font-weight:700">📎 Comprobantes (' + comps.length + ')</span>' +
+              '<button onclick="agregarComprobanteV74(' + d.id + ',\'' + p.id + '\')" style="padding:4px 10px;font-size:10px;background:#fff;color:#f59e0b;border:1px solid #f59e0b;font-weight:700;border-radius:5px;cursor:pointer">+ Agregar comprobante</button>' +
+            '</div>';
+          
+          if(comps.length === 0){
+            html += '<div style="padding:8px;text-align:center;color:var(--text2);font-size:10px;background:#fff;border:1px dashed var(--border);border-radius:5px">Sin comprobantes. Click en + Agregar comprobante</div>';
+          } else {
+            comps.forEach(function(c){
+              html += '<div style="background:#fff;border-radius:5px;border:1px solid var(--border);padding:8px 10px;margin-bottom:6px">' +
+                '<div style="display:flex;align-items:center;gap:8px">' +
+                  '<span style="font-size:18px">📁</span>' +
+                  '<div style="flex:1;min-width:0">' +
+                    '<div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (c.nombre || 'Comprobante') + '</div>' +
+                    '<div style="display:flex;gap:8px;margin-top:1px">' +
+                      '<a href="javascript:void(0)" onclick="abrirComprobanteV74(' + d.id + ',\'' + p.id + '\',\'' + c.id + '\')" style="font-size:9px;color:#2563eb;font-weight:700;text-decoration:none">↗ Abrir</a>' +
+                      '<a href="javascript:void(0)" onclick="editarComprobanteV74(' + d.id + ',\'' + p.id + '\',\'' + c.id + '\')" style="font-size:9px;color:#7c3aed;font-weight:700;text-decoration:none">✏️ Editar</a>' +
+                      '<a href="javascript:void(0)" onclick="eliminarComprobanteV74(' + d.id + ',\'' + p.id + '\',\'' + c.id + '\')" style="font-size:9px;color:#dc2626;font-weight:700;text-decoration:none">🗑️ Borrar</a>' +
+                    '</div>' +
+                  '</div>' +
+                '</div>' +
+                '<textarea placeholder="📝 Notas del comprobante (opcional)" onchange="actualizarNotaComprobanteV75(' + d.id + ',\'' + p.id + '\',\'' + c.id + '\',this.value)" style="width:100%;margin-top:6px;padding:5px 8px;font-size:10px;border:1px solid var(--border);border-radius:4px;font-family:inherit;resize:vertical;min-height:28px;background:#fafafa">' + (c.notas || '') + '</textarea>' +
+              '</div>';
+            });
+          }
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    });
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V75 pagos:', e); }
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
