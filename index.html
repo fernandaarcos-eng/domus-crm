@@ -11607,6 +11607,78 @@ leads.forEach(function(l){
     console.log('  ' + l.id + ' (' + (l.name||'?') + '): ' + l.cotizaciones.length + ' cotiz');
   }
 });
+  // ═══════════════════════════════════════════════════════════
+// ═══ V71: Limpiar secciones duplicadas del perfil ═════════
+// ═══════════════════════════════════════════════════════════
+
+// Mapeo: si existe la versión nueva (v67/v66/v68), eliminar la versión vieja
+window.V71_DUPLICADOS = [
+  // Cuentas: si hay v67, eliminar v55/v56
+  { nueva: '.section-cuentas-v67',     viejas: ['.section-cuenta-cliente','.section-cuentas-v50','.section-cuentas-v55','.section-cuentas-v56'] },
+  // Contratos: si hay v67, eliminar v55/v56
+  { nueva: '.section-contratos-v67',   viejas: ['.section-contratos-cliente','.section-contratos-v50','.section-contratos-v55','.section-contratos-v56'] },
+  // Pagos: si hay v67, eliminar v40/v61
+  { nueva: '.section-pagos-v67',       viejas: ['.section-pago-amob','.section-pagos-amob','.section-pagos-v61'] },
+  // Notas: si hay v67, eliminar v59
+  { nueva: '.section-notas-v67',       viejas: ['.section-notas-gemini-v59'] },
+  // Cotizaciones: si hay v66, eliminar versiones antiguas
+  { nueva: '.section-cotizaciones-v66',viejas: ['.section-cotizaciones'] }
+];
+
+window.v71_limpiarDuplicados = function(){
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  let removidos = 0;
+  
+  // Por cada par "nueva-vieja"
+  window.V71_DUPLICADOS.forEach(function(par){
+    const tieneNueva = !!mc.querySelector(par.nueva);
+    if(tieneNueva){
+      // Eliminar TODAS las viejas
+      par.viejas.forEach(function(selectorViejo){
+        mc.querySelectorAll(selectorViejo).forEach(function(el){
+          el.remove();
+          removidos++;
+        });
+      });
+    }
+  });
+  
+  // Adicionalmente: si hay MÁS DE UNA del mismo tipo nuevo, dejar solo la última
+  ['.section-cuentas-v67','.section-contratos-v67','.section-pagos-v67','.section-notas-v67','.section-cotizaciones-v66'].forEach(function(sel){
+    const elementos = mc.querySelectorAll(sel);
+    if(elementos.length > 1){
+      // Dejar la última (más reciente), eliminar las anteriores
+      for(let i = 0; i < elementos.length - 1; i++){
+        elementos[i].remove();
+        removidos++;
+      }
+    }
+  });
+  
+  // Eliminar botones de eliminar duplicados (mantener solo 1)
+  const btns = document.querySelectorAll('#v68-btn-elim-perfil');
+  if(btns.length > 1){
+    for(let i = 0; i < btns.length - 1; i++){
+      btns[i].remove();
+    }
+  }
+  
+  if(removidos > 0) console.log('V71: ' + removidos + ' duplicados eliminados');
+};
+
+// Correr cada 800ms (más frecuente que la inyección de V70 que es 2s)
+setInterval(window.v71_limpiarDuplicados, 800);
+
+// También correr en cambios del DOM
+setTimeout(function(){
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  const obs = new MutationObserver(function(){
+    setTimeout(window.v71_limpiarDuplicados, 100);
+  });
+  obs.observe(mc, {childList: true, subtree: false});
+}, 2000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
