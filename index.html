@@ -11762,6 +11762,237 @@ setTimeout(function(){
     else if(typeof saveData === 'function') saveData();
   }
 }, 5500);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V73: Sistema de archivos con Google Drive ═══════════
+// ═══════════════════════════════════════════════════════════
+
+window.v73_normalizarLink = function(url){
+  if(!url) return '';
+  url = url.trim();
+  if(!url) return '';
+  if(!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  return url;
+};
+
+window.v73_extraerDriveId = function(url){
+  if(!url) return null;
+  const patterns = [
+    /\/file\/d\/([^\/?]+)/,
+    /\/document\/d\/([^\/?]+)/,
+    /\/spreadsheets\/d\/([^\/?]+)/,
+    /\/presentation\/d\/([^\/?]+)/,
+    /[?&]id=([^&]+)/
+  ];
+  for(let i = 0; i < patterns.length; i++){
+    const m = url.match(patterns[i]);
+    if(m) return m[1];
+  }
+  return null;
+};
+
+window.v73_esLinkDrive = function(url){
+  return /drive\.google\.com|docs\.google\.com/i.test(url);
+};
+
+// === Guardar link de contrato ===
+window.guardarLinkContrato = function(leadId, tipo){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+  
+  const labelTipo = tipo === 'contrato_admin_depto' ? 'Contrato de Administración' : 'Contrato de Amoblado';
+  const linkActual = (l[tipo] && l[tipo].driveUrl) || '';
+  const nombreActual = (l[tipo] && l[tipo].nombre) || '';
+  
+  const link = prompt('📎 Link de Google Drive del ' + labelTipo + '\n\nPega aquí el link que copiaste desde Drive:\n(Click derecho en el archivo → Compartir → Copiar enlace)', linkActual);
+  if(link === null) return; // Cancelado
+  
+  const linkNorm = window.v73_normalizarLink(link);
+  if(!linkNorm){
+    // Si quedó vacío, eliminar
+    delete l[tipo];
+    if(l._contratos_eliminados) delete l._contratos_eliminados[tipo];
+    saveData();
+    if(typeof toast==='function') toast('🗑️ Link eliminado');
+    if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+      setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
+    }
+    return;
+  }
+  
+  if(!window.v73_esLinkDrive(linkNorm)){
+    if(!confirm('⚠️ Este link no parece ser de Google Drive. ¿Quieres guardarlo de todos modos?')) return;
+  }
+  
+  const nombre = prompt('📝 Nombre del archivo (para mostrar en la lista):', nombreActual || labelTipo);
+  if(nombre === null) return;
+  
+  l[tipo] = {
+    driveUrl: linkNorm,
+    driveId: window.v73_extraerDriveId(linkNorm),
+    nombre: nombre.trim() || labelTipo,
+    fecha: new Date().toLocaleDateString('es-CL'),
+    creadoPor: (typeof obtenerUsuarioActual === 'function' ? obtenerUsuarioActual() : '') || ''
+  };
+  // Limpiar marca de eliminado
+  if(l._contratos_eliminados) delete l._contratos_eliminados[tipo];
+  
+  if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+  else if(typeof saveData === 'function') saveData();
+  if(typeof toast==='function') toast('✅ ' + labelTipo + ' guardado');
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+    setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
+  }
+};
+
+window.abrirContratoDrive = function(leadId, tipo){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !l[tipo] || !l[tipo].driveUrl){ if(typeof toast==='function')toast('⚠️ Sin link'); return; }
+  window.open(l[tipo].driveUrl, '_blank');
+};
+
+// === Comprobantes de pago con link de Drive ===
+window.guardarLinkComprobante = function(leadId, pagoId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+  if(!Array.isArray(l.pagos_amob)) l.pagos_amob = [];
+  const p = l.pagos_amob.find(function(x){ return x.id === pagoId; });
+  if(!p) return;
+  
+  const linkActual = (p.comprobante && p.comprobante.driveUrl) || '';
+  const link = prompt('📎 Link de Google Drive del comprobante de pago:\n(Click derecho en el archivo → Compartir → Copiar enlace)', linkActual);
+  if(link === null) return;
+  
+  const linkNorm = window.v73_normalizarLink(link);
+  if(!linkNorm){
+    p.comprobante = null;
+    if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+    else if(typeof saveData === 'function') saveData();
+    if(typeof toast==='function') toast('🗑️ Comprobante eliminado');
+    if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+      setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
+    }
+    return;
+  }
+  
+  const nombre = prompt('📝 Nombre del comprobante:', (p.comprobante && p.comprobante.nombre) || 'Comprobante de pago');
+  if(nombre === null) return;
+  
+  p.comprobante = {
+    driveUrl: linkNorm,
+    driveId: window.v73_extraerDriveId(linkNorm),
+    nombre: nombre.trim() || 'Comprobante',
+    fecha: new Date().toLocaleDateString('es-CL')
+  };
+  
+  if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+  else if(typeof saveData === 'function') saveData();
+  if(typeof toast==='function') toast('✅ Comprobante guardado');
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+    setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
+  }
+};
+
+window.abrirComprobanteDrive = function(leadId, pagoId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !Array.isArray(l.pagos_amob)) return;
+  const p = l.pagos_amob.find(function(x){ return x.id === pagoId; });
+  if(!p || !p.comprobante || !p.comprobante.driveUrl){ if(typeof toast==='function')toast('⚠️ Sin link'); return; }
+  window.open(p.comprobante.driveUrl, '_blank');
+};
+
+// === Reemplazar inyectarContratosV67 para usar links ===
+window.inyectarContratosV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    let deptos = getDeptosCliente(key);
+    const vistos = {};
+    deptos = deptos.filter(function(d){ if(vistos[d.id]) return false; vistos[d.id] = true; return true; });
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-contratos-v55, .section-contratos-v56, .section-contratos-v67').forEach(function(v){ v.remove(); });
+    
+    function tarjetaV73(leadId, tipo, label, color, contrato){
+      if(contrato && contrato.driveUrl){
+        return '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ' + color + ';border-radius:var(--rsm);padding:11px 13px">' +
+          '<div style="font-size:10px;font-weight:900;color:' + color + ';margin-bottom:8px;text-transform:uppercase">' + label + '</div>' +
+          '<div style="display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--bg);border-radius:6px">' +
+            '<div style="width:44px;height:44px;background:' + color + ';border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">📁</div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (contrato.nombre || 'Archivo de Drive') + '</div>' +
+              '<div style="display:flex;gap:8px;margin-top:2px">' +
+                '<a href="javascript:void(0)" onclick="abrirContratoDrive(' + leadId + ',\'' + tipo + '\')" style="font-size:10px;color:#2563eb;font-weight:700;text-decoration:none">↗ Abrir en Drive</a>' +
+                '<a href="javascript:void(0)" onclick="guardarLinkContrato(' + leadId + ',\'' + tipo + '\')" style="font-size:10px;color:#7c3aed;font-weight:700;text-decoration:none">✏️ Editar link</a>' +
+              '</div>' +
+            '</div>' +
+            '<button onclick="if(confirm(\'¿Borrar el link?\')){var l=leads.find(function(x){return x.id===' + leadId + '});delete l.' + tipo + ';saveData();renderClientePerfil(' + leadId + ');}" style="background:none;border:2px solid var(--border2);color:#dc2626;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px">🗑️</button>' +
+          '</div>' +
+        '</div>';
+      }
+      return '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ' + color + ';border-radius:var(--rsm);padding:11px 13px">' +
+        '<div style="font-size:10px;font-weight:900;color:' + color + ';margin-bottom:8px;text-transform:uppercase">' + label + '</div>' +
+        '<button onclick="guardarLinkContrato(' + leadId + ',\'' + tipo + '\')" style="width:100%;padding:12px;background:#fff;border:2px dashed ' + color + ';color:' + color + ';border-radius:var(--rsm);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">📎 Pegar link de Drive</button>' +
+      '</div>';
+    }
+    
+    const sec = document.createElement('div');
+    sec.className = 'section-contratos-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase">📄 Contratos por departamento (' + deptos.length + ')</div><span style="font-size:9px;color:var(--text3);font-style:italic">Compartido vía Google Drive</span></div>';
+    deptos.forEach(function(d){
+      const esAdminAmob = d.tipo_contrato === 'admin_amob';
+      const nombreD = d.address || ('Depto #' + d.id);
+      html += '<div style="background:var(--bg);border:2px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><div style="width:8px;height:8px;background:#7c3aed;border-radius:50%"></div><div style="font-size:12px;font-weight:900">🏠 ' + nombreD + '</div><span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + (esAdminAmob?'Admin + Amoblado':'Solo Administración') + '</span></div><div style="display:grid;grid-template-columns:' + (esAdminAmob?'1fr 1fr':'1fr') + ';gap:8px">' + tarjetaV73(d.id, 'contrato_admin_depto', '📄 Contrato Administración', '#2563eb', d.contrato_admin_depto) + (esAdminAmob ? tarjetaV73(d.id, 'contrato_amob_depto', '🛋️ Contrato Amoblado', '#7c3aed', d.contrato_amob_depto) : '') + '</div></div>';
+    });
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V73 contratos:', e); }
+};
+
+// === Reemplazar inyectarPagosV67 para usar links de Drive ===
+window.inyectarPagosV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const deptosAmob = deptos.filter(function(d){ return d.tipo_contrato === 'admin_amob'; });
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-pagos-v61, .section-pagos-v67').forEach(function(v){ v.remove(); });
+    if(deptosAmob.length === 0) return;
+    
+    const sec = document.createElement('div');
+    sec.className = 'section-pagos-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let html = '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;margin-bottom:10px">💰 Pagos del amoblado</div>';
+    
+    deptosAmob.forEach(function(d){
+      const pagos = window.getPagosAmobV61 ? window.getPagosAmobV61(d) : [];
+      const total = pagos.reduce(function(s,p){ return s + (parseInt(p.monto)||0); }, 0);
+      const nombreD = d.address || ('Depto #' + d.id);
+      html += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #f59e0b;border-radius:var(--rsm);padding:14px 16px;margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0"><span style="font-size:11px;font-weight:800">🏠 ' + nombreD + '</span> <span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + pagos.length + ' pago' + (pagos.length===1?'':'s') + '</span></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:14px;font-weight:900;color:#d97706">$' + total.toLocaleString('es-CL') + '</span><button onclick="agregarPagoV61(' + d.id + ')" style="padding:5px 12px;font-size:10px;background:#f59e0b;color:#fff;border:none;font-weight:800;border-radius:6px;cursor:pointer">+ Agregar pago</button></div></div>';
+      if(pagos.length === 0){
+        html += '<div style="padding:14px;text-align:center;color:var(--text2);font-size:11px;background:var(--bg);border:1px dashed var(--border);border-radius:6px">Sin pagos</div>';
+      } else {
+        pagos.forEach(function(p, idx){
+          const tieneLink = p.comprobante && p.comprobante.driveUrl;
+          html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:800;background:#fff;padding:3px 10px;border-radius:12px;border:1px solid var(--border)">Pago ' + (idx+1) + '</span><input type="date" value="' + (p.fecha||'') + '" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'fecha\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px"><input type="text" value="' + (p.monto||0) + '" oninput="this.value=this.value.replace(/[^\\d]/g,\'\')" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'monto\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;width:120px;font-weight:700"><button onclick="eliminarPagoV61(' + d.id + ',\'' + p.id + '\')" style="margin-left:auto;background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button></div>';
+          if(tieneLink){
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:5px;border:1px solid var(--border)"><span style="font-size:18px">📁</span><div style="flex:1;min-width:0"><div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (p.comprobante.nombre || 'Comprobante') + '</div><div style="display:flex;gap:8px;margin-top:1px"><a href="javascript:void(0)" onclick="abrirComprobanteDrive(' + d.id + ',\'' + p.id + '\')" style="font-size:9px;color:#2563eb;font-weight:700">↗ Abrir en Drive</a><a href="javascript:void(0)" onclick="guardarLinkComprobante(' + d.id + ',\'' + p.id + '\')" style="font-size:9px;color:#7c3aed;font-weight:700">✏️ Editar link</a></div></div></div>';
+          } else {
+            html += '<button onclick="guardarLinkComprobante(' + d.id + ',\'' + p.id + '\')" style="width:100%;padding:8px;background:#fff;border:2px dashed #f59e0b;color:#d97706;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">📎 Pegar link de Drive del comprobante</button>';
+          }
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    });
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V73 pagos:', e); }
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
