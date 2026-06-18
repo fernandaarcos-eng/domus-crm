@@ -10810,6 +10810,103 @@ setTimeout(tryMigrarV62, 6000);
 
 // Botón para volver a ejecutar manual desde consola
 window.reMigrarArchivos = window.migrarArchivosV62;
+  // ═══════════════════════════════════════════════════════════
+// ═══ V64: Botón Guardar visible + estado claro ═══════════
+// ═══════════════════════════════════════════════════════════
+
+window.V64_ULTIMO_ERROR = null;
+
+window.guardarAhoraV64 = async function(){
+  const btn = document.getElementById('v64-btn-guardar');
+  if(btn){
+    btn.disabled = true;
+    btn.style.background = '#7c3aed';
+    btn.innerHTML = '⏳ Guardando...';
+  }
+  try {
+    if(typeof window.__V60_origSave === 'function'){
+      const r = window.__V60_origSave();
+      if(r && typeof r.then === 'function') await r;
+    } else if(typeof saveData === 'function'){
+      saveData();
+    }
+    // Marcar como limpio
+    window.__V60_dirty = false;
+    window.V64_ULTIMO_ERROR = null;
+    if(btn){
+      btn.disabled = false;
+      btn.style.background = '#16a34a';
+      btn.innerHTML = '✓ Guardado';
+      setTimeout(function(){
+        if(btn) v64_actualizarBoton();
+      }, 2000);
+    }
+    if(typeof toast === 'function') toast('✅ Cambios guardados correctamente');
+  } catch(e){
+    console.error('V64 save error:', e);
+    window.V64_ULTIMO_ERROR = String(e && e.message || e);
+    if(btn){
+      btn.disabled = false;
+      btn.style.background = '#dc2626';
+      btn.innerHTML = '⚠️ Error - Click para reintentar';
+    }
+    if(typeof toast === 'function') toast('⚠️ Error al guardar: ' + (e && e.message || e));
+  }
+};
+
+window.v64_actualizarBoton = function(){
+  const btn = document.getElementById('v64-btn-guardar');
+  if(!btn) return;
+  if(window.V64_ULTIMO_ERROR){
+    btn.style.background = '#dc2626';
+    btn.innerHTML = '⚠️ Reintentar guardado';
+    btn.style.boxShadow = '0 4px 12px rgba(220,38,38,.4)';
+  } else if(window.__V60_dirty){
+    btn.style.background = '#f59e0b';
+    btn.innerHTML = '💾 Guardar cambios';
+    btn.style.boxShadow = '0 4px 12px rgba(245,158,11,.4)';
+  } else {
+    btn.style.background = '#16a34a';
+    btn.innerHTML = '✓ Todo guardado';
+    btn.style.boxShadow = '0 4px 12px rgba(22,163,74,.25)';
+  }
+};
+
+window.v64_crearBoton = function(){
+  if(document.getElementById('v64-btn-guardar')) return;
+  const btn = document.createElement('button');
+  btn.id = 'v64-btn-guardar';
+  btn.onclick = window.guardarAhoraV64;
+  btn.style.cssText = 'position:fixed;bottom:18px;right:18px;background:#16a34a;color:#fff;border:none;padding:13px 22px;border-radius:30px;font-size:13px;font-weight:900;font-family:\'Nunito\',sans-serif;cursor:pointer;z-index:9500;box-shadow:0 4px 12px rgba(22,163,74,.25);transition:all .2s;letter-spacing:.02em';
+  btn.innerHTML = '✓ Todo guardado';
+  btn.onmouseover = function(){ btn.style.transform = 'translateY(-2px) scale(1.02)'; };
+  btn.onmouseout = function(){ btn.style.transform = 'translateY(0) scale(1)'; };
+  document.body.appendChild(btn);
+};
+
+// Crear botón al cargar
+setTimeout(window.v64_crearBoton, 800);
+setTimeout(window.v64_crearBoton, 3000);
+
+// Actualizar el estado del botón cada 700ms
+setInterval(function(){
+  window.v64_crearBoton();
+  v64_actualizarBoton();
+}, 700);
+
+// Atajo de teclado Ctrl+S / Cmd+S
+window.addEventListener('keydown', function(e){
+  if((e.ctrlKey || e.metaKey) && e.key === 's'){
+    e.preventDefault();
+    window.guardarAhoraV64();
+  }
+});
+
+// Ocultar indicador viejo de V60 (es redundante)
+setInterval(function(){
+  const old = document.getElementById('v60-indicator');
+  if(old) old.style.display = 'none';
+}, 1000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
