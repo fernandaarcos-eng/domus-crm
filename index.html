@@ -11507,6 +11507,106 @@ setTimeout(window.v69_inyectarTodo, 500);
 setTimeout(window.v69_inyectarTodo, 1500);
 setTimeout(window.v69_inyectarTodo, 3000);
 setTimeout(window.v69_inyectarTodo, 5000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V70: Fix duplicación + observer inteligente ══════════
+// ═══════════════════════════════════════════════════════════
+
+// 1) DESACTIVAR V69 (causaba duplicación)
+window.v69_inyectarTodo = function(){}; // sobreescribir con noop
+window.V70_LAST_INJECT = 0;
+
+// 2) OBSERVER INTELIGENTE que NO interrumpe edición
+window.v70_intentarInyectar = function(){
+  const id = window.perfilCurrentLeadId;
+  if(!id) return;
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  // Solo si el perfil está cargado
+  if(mc.textContent.indexOf('Datos personales') === -1 && mc.textContent.indexOf('Volver al Pipeline') === -1) return;
+  
+  // NO interrumpir si hay focus en input/textarea (editando)
+  const act = document.activeElement;
+  if(act && (act.tagName === 'INPUT' || act.tagName === 'TEXTAREA' || act.tagName === 'SELECT')){
+    return;
+  }
+  
+  // Debounce 2s
+  const ahora = Date.now();
+  if(ahora - window.V70_LAST_INJECT < 2000) return;
+  
+  // Si TODAS están, no hacer nada
+  const seccs = ['.section-cuentas-v67','.section-contratos-v67','.section-pagos-v67','.section-notas-v67'];
+  const todas = seccs.every(function(s){ return !!mc.querySelector(s); });
+  if(todas && document.getElementById('v68-btn-elim-perfil')) return;
+  
+  window.V70_LAST_INJECT = ahora;
+  try {
+    window.inyectarCuentasV67 && window.inyectarCuentasV67(id);
+    window.inyectarContratosV67 && window.inyectarContratosV67(id);
+    window.inyectarPagosV67 && window.inyectarPagosV67(id);
+    window.inyectarNotasV67 && window.inyectarNotasV67(id);
+    window.renderCotizacionesV66 && window.renderCotizacionesV66(id);
+    window.inyectarBotonesEliminarV68 && window.inyectarBotonesEliminarV68(id);
+  } catch(e){ console.warn('V70:', e); }
+};
+
+// MutationObserver para detectar cuando el mc cambia
+window.v70_iniciarObserver = function(){
+  const mc = document.getElementById('mc');
+  if(!mc || window.v70_observer) return;
+  window.v70_observer = new MutationObserver(function(){
+    setTimeout(window.v70_intentarInyectar, 300);
+  });
+  window.v70_observer.observe(mc, {childList: true, subtree: false});
+};
+
+// Iniciar observer cuando mc exista
+function v70_tryStart(r){
+  r = r || 0;
+  if(document.getElementById('mc')){
+    window.v70_iniciarObserver();
+  } else if(r < 20){
+    setTimeout(function(){ v70_tryStart(r+1); }, 500);
+  }
+}
+v70_tryStart();
+
+// Inyectar al cargar
+setTimeout(window.v70_intentarInyectar, 1000);
+setTimeout(window.v70_intentarInyectar, 3000);
+
+// 3) GUARDAR COTIZACIONES DE FORMA ROBUSTA
+// Interceptar el array cotizaciones para que cualquier push dispare save
+window.guardarCotizacionV70 = function(leadId, cotizacion){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+  if(!Array.isArray(l.cotizaciones)) l.cotizaciones = [];
+  // Asignar id si no tiene
+  if(!cotizacion.id) cotizacion.id = 'cotiz_' + Date.now() + '_' + Math.floor(Math.random()*999);
+  if(!cotizacion.fecha) cotizacion.fecha = new Date().toISOString();
+  if(!cotizacion.fechaStr) cotizacion.fechaStr = new Date().toLocaleDateString('es-CL');
+  l.cotizaciones.push(cotizacion);
+  // Save inmediato (skip debounce)
+  if(typeof window.__V60_origSave === 'function'){
+    window.__V60_origSave();
+  } else if(typeof saveData === 'function'){
+    saveData();
+  }
+  if(typeof toast === 'function') toast('💾 Cotización guardada en perfil');
+  // Re-render si estamos en su perfil
+  if(window.perfilCurrentLeadId === leadId && window.renderCotizacionesV66){
+    setTimeout(function(){ window.renderCotizacionesV66(leadId); }, 200);
+  }
+  return cotizacion;
+};
+
+// Diagnóstico: contar cotizaciones existentes
+console.log('V70 - Cotizaciones guardadas en sistema:');
+leads.forEach(function(l){
+  if(Array.isArray(l.cotizaciones) && l.cotizaciones.length > 0){
+    console.log('  ' + l.id + ' (' + (l.name||'?') + '): ' + l.cotizaciones.length + ' cotiz');
+  }
+});
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
