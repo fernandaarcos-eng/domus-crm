@@ -12506,6 +12506,85 @@ window.inyectarPagosV67 = function(currentId){
     mc.appendChild(sec);
   } catch(e){ console.warn('V77 pagos:', e); }
 };
+ // ═══════════════════════════════════════════════════════════
+// ═══ V78: Fix dropdown + pausar observers durante edición ═
+// ═══════════════════════════════════════════════════════════
+
+window.V78_EDITANDO = false;
+
+// Detectar focus en cualquier select/input/textarea del perfil
+document.addEventListener('focusin', function(e){
+  if(!e.target) return;
+  const tag = e.target.tagName;
+  if(tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA'){
+    window.V78_EDITANDO = true;
+  }
+}, true);
+
+document.addEventListener('focusout', function(e){
+  if(!e.target) return;
+  const tag = e.target.tagName;
+  if(tag === 'SELECT' || tag === 'INPUT' || tag === 'TEXTAREA'){
+    setTimeout(function(){ window.V78_EDITANDO = false; }, 500);
+  }
+}, true);
+
+// Wrappear v71_limpiarDuplicados para que NO corra si está editando
+if(typeof window.v71_limpiarDuplicados === 'function'){
+  const __origLimpiar = window.v71_limpiarDuplicados;
+  window.v71_limpiarDuplicados = function(){
+    if(window.V78_EDITANDO) return;
+    return __origLimpiar();
+  };
+}
+
+// Wrappear v70_intentarInyectar para que NO corra si está editando
+if(typeof window.v70_intentarInyectar === 'function'){
+  const __origInyectar = window.v70_intentarInyectar;
+  window.v70_intentarInyectar = function(){
+    if(window.V78_EDITANDO) return;
+    return __origInyectar();
+  };
+}
+
+// Re-definir updCtaV55 con try/catch
+window.updCtaV55 = function(clienteKey, cuentaId, field, val){
+  try {
+    const deptos = getDeptosCliente(clienteKey);
+    if(!deptos || !deptos.length) return;
+    // Obtener cuentas actuales
+    let cuentas = [];
+    if(typeof window.getCuentasV55 === 'function'){
+      cuentas = window.getCuentasV55(deptos);
+    }
+    const c = cuentas.find(function(x){ return x.id === cuentaId; });
+    if(!c){ console.warn('V78 cuenta no encontrada:', cuentaId); return; }
+    c[field] = val;
+    // Guardar
+    if(typeof window.guardarCuentasV55 === 'function'){
+      window.guardarCuentasV55(clienteKey, cuentas);
+    } else {
+      deptos.forEach(function(l){ l.cuentas_cliente = JSON.parse(JSON.stringify(cuentas)); });
+      if(typeof saveData === 'function') saveData();
+    }
+    if(typeof toast === 'function') toast('💾 ' + field + ' actualizado');
+  } catch(e){
+    console.error('V78 updCtaV55 error:', e);
+    if(typeof toast === 'function') toast('⚠️ Error: ' + (e && e.message || e));
+  }
+};
+
+// Asegurar que toggleCtaPlegarV55 también funcione
+if(typeof window.toggleCtaPlegarV55 !== 'function'){
+  window.toggleCtaPlegarV55 = function(cuentaId){
+    const body = document.getElementById('cta-body-v55-' + cuentaId);
+    const arr = document.getElementById('cta-arr-v55-' + cuentaId);
+    if(!body) return;
+    const oculto = body.style.display === 'none';
+    body.style.display = oculto ? 'block' : 'none';
+    if(arr) arr.textContent = oculto ? '▼' : '▶';
+  };
+} 
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
