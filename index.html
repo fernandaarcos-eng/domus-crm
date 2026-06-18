@@ -11458,6 +11458,55 @@ setTimeout(function(){
     renderClientePerfil(window.perfilCurrentLeadId);
   }
 }, 2500);
+  // ═══ V69: setInterval persistente del perfil ═══
+
+window.v69_estoyEnPerfil = function(){
+  return !!window.perfilCurrentLeadId &&
+         typeof currentView !== 'undefined' &&
+         (currentView === 'cliente-perfil' || currentView === 'perfil-cliente' || currentView === 'perfilCliente') ||
+         !!document.querySelector('[onclick*="Volver al Pipeline"]');
+};
+
+window.v69_inyectarTodo = function(){
+  const id = window.perfilCurrentLeadId;
+  if(!id) return;
+  const cliente = leads.find(function(x){ return x.id === id; });
+  if(!cliente) return;
+  // Solo si el perfil está abierto (hay un botón "Volver al pipeline" en el mc)
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  const enPerfil = mc.textContent.indexOf('Volver al Pipeline') > -1 || mc.textContent.indexOf('Datos personales') > -1;
+  if(!enPerfil) return;
+  
+  // Verificar si ya están las secciones
+  const yaCuentas = !!mc.querySelector('.section-cuentas-v67');
+  const yaContratos = !!mc.querySelector('.section-contratos-v67');
+  const yaPagos = !!mc.querySelector('.section-pagos-v67');
+  const yaNotas = !!mc.querySelector('.section-notas-v67');
+  const yaCotiz = !!mc.querySelector('.section-cotizaciones-v66');
+  const yaBtnPerfil = !!document.getElementById('v68-btn-elim-perfil');
+  
+  // Si TODAS están ya, no hacer nada
+  if(yaCuentas && yaContratos && yaPagos && yaNotas && yaBtnPerfil) return;
+  
+  try {
+    if(window.inyectarCuentasV67) window.inyectarCuentasV67(id);
+    if(window.inyectarContratosV67) window.inyectarContratosV67(id);
+    if(window.inyectarPagosV67) window.inyectarPagosV67(id);
+    if(window.inyectarNotasV67) window.inyectarNotasV67(id);
+    if(window.renderCotizacionesV66) window.renderCotizacionesV66(id);
+    if(window.inyectarBotonesEliminarV68) window.inyectarBotonesEliminarV68(id);
+  } catch(e){ console.warn('V69:', e); }
+};
+
+// Aplicar cada 1.5 segundos
+setInterval(window.v69_inyectarTodo, 1500);
+
+// Y también con setTimeouts iniciales
+setTimeout(window.v69_inyectarTodo, 500);
+setTimeout(window.v69_inyectarTodo, 1500);
+setTimeout(window.v69_inyectarTodo, 3000);
+setTimeout(window.v69_inyectarTodo, 5000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
