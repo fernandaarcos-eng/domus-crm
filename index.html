@@ -10684,6 +10684,132 @@ window.eliminarComprobantePagoV61 = function(leadId, pagoId){
     }, 600);
   };
 })();
+  // ═══ V62: Migrar archivos legacy a IndexedDB ═══
+
+window.V62_CAMPOS_ARCHIVOS = [
+  'contrato_admin_cliente',
+  'contrato_amob_cliente',
+  'contrato_admin_depto',
+  'contrato_amob_depto'
+];
+
+window.migrarArchivosV62 = async function(){
+  if(!window.v57_saveFile){ console.warn('V62: V57 no disponible'); return; }
+  if(!leads || !leads.length) return;
+  
+  let migrados = 0;
+  let totalReducido = 0;
+  
+  for(let i = 0; i < leads.length; i++){
+    const l = leads[i];
+    for(let j = 0; j < window.V62_CAMPOS_ARCHIVOS.length; j++){
+      const campo = window.V62_CAMPOS_ARCHIVOS[j];
+      const f = l[campo];
+      if(f && f.data && !f.fileKey){
+        // Migrar a IndexedDB
+        const fileKey = 'v62_' + l.id + '_' + campo + '_' + Date.now();
+        try {
+          const tamañoAntes = (f.data||'').length;
+          await window.v57_saveFile(fileKey, {
+            name: f.name || campo,
+            type: f.type || 'application/octet-stream',
+            size: f.size || tamañoAntes,
+            data: f.data,
+            fecha: f.fecha || new Date().toLocaleDateString('es-CL')
+          });
+          // Reemplazar en el lead solo metadata + fileKey
+          l[campo] = {
+            fileKey: fileKey,
+            name: f.name,
+            type: f.type,
+            size: f.size,
+            fecha: f.fecha
+          };
+          migrados++;
+          totalReducido += tamañoAntes;
+          console.log('V62: migrado ' + campo + ' del lead ' + l.id);
+        } catch(e){
+          console.warn('V62 error en lead ' + l.id + ' campo ' + campo, e);
+        }
+      }
+    }
+    
+    // También migrar comprobantes de pagos antiguos (pago_amob viejo de V40)
+    if(l.pago_amob && l.pago_amob.voucher_data && !l.pago_amob.fileKey){
+      const fileKey = 'v62pago_' + l.id + '_' + Date.now();
+      try {
+        const tamañoAntes = l.pago_amob.voucher_data.length;
+        await window.v57_saveFile(fileKey, {
+          name: l.pago_amob.voucher_name || 'voucher',
+          type: l.pago_amob.voucher_type || 'application/pdf',
+          size: tamañoAntes,
+          data: l.pago_amob.voucher_data,
+          fecha: l.pago_amob.fecha
+        });
+        l.pago_amob.fileKey = fileKey;
+        delete l.pago_amob.voucher_data;
+        delete l.pago_amob.voucher_url;
+        migrados++;
+        totalReducido += tamañoAntes;
+      } catch(e){ console.warn('V62 pago:', e); }
+    }
+    
+    // Comprobantes de pagos múltiples V61
+    if(Array.isArray(l.pagos_amob)){
+      for(let k = 0; k < l.pagos_amob.length; k++){
+        const p = l.pagos_amob[k];
+        if(p.comprobante && p.comprobante.data && !p.comprobante.fileKey){
+          const fileKey = 'v62pagoMul_' + l.id + '_' + k + '_' + Date.now();
+          try {
+            const tamañoAntes = p.comprobante.data.length;
+            await window.v57_saveFile(fileKey, {
+              name: p.comprobante.name,
+              type: p.comprobante.type,
+              size: p.comprobante.size || tamañoAntes,
+              data: p.comprobante.data,
+              fecha: p.comprobante.fecha
+            });
+            p.comprobante = {
+              fileKey: fileKey,
+              name: p.comprobante.name,
+              type: p.comprobante.type,
+              size: p.comprobante.size,
+              fecha: p.comprobante.fecha
+            };
+            migrados++;
+            totalReducido += tamañoAntes;
+          } catch(e){ console.warn('V62 pago mul:', e); }
+        }
+      }
+    }
+  }
+  
+  if(migrados > 0){
+    if(typeof window.__V60_origSave === 'function'){
+      await window.__V60_origSave();
+    } else if(typeof saveData === 'function'){
+      saveData();
+    }
+    console.log('✅ V62: ' + migrados + ' archivos migrados a IndexedDB. JSON reducido en ' + (totalReducido/1024/1024).toFixed(2) + ' MB');
+    if(typeof toast === 'function') toast('✅ ' + migrados + ' archivos migrados a IndexedDB (-' + (totalReducido/1024/1024).toFixed(1) + ' MB)');
+  } else {
+    console.log('V62: ya no hay archivos legacy por migrar');
+  }
+};
+
+// Ejecutar migración una vez al cargar
+function tryMigrarV62(r){
+  r = r || 0;
+  if(typeof leads !== 'undefined' && leads && leads.length && window.v57_saveFile){
+    window.migrarArchivosV62();
+  } else if(r < 15){
+    setTimeout(function(){ tryMigrarV62(r+1); }, 1000);
+  }
+}
+setTimeout(tryMigrarV62, 6000);
+
+// Botón para volver a ejecutar manual desde consola
+window.reMigrarArchivos = window.migrarArchivosV62;
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
