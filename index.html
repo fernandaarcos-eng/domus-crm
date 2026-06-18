@@ -11679,6 +11679,89 @@ setTimeout(function(){
   });
   obs.observe(mc, {childList: true, subtree: false});
 }, 2000);
+    // ═══ V72: Permitir re-upload tras eliminar contrato ═══
+
+// Limpiar marca de "eliminado" en todos los leads que tengan archivos restaurables
+window.v72_limpiarMarcasEliminados = function(){
+  if(!leads) return;
+  let limpiados = 0;
+  leads.forEach(function(l){
+    if(l._contratos_eliminados){
+      delete l._contratos_eliminados;
+      limpiados++;
+    }
+  });
+  if(limpiados > 0){
+    console.log('V72: ' + limpiados + ' marcas _contratos_eliminados limpiadas');
+  }
+};
+
+// Re-definir uploadContratoDepto para limpiar la marca antes de guardar
+window.uploadContratoDepto = function(leadId, tipo, input){
+  if(!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  if(file.size > 20*1024*1024){ if(typeof toast==='function')toast('⚠️ Máx 20MB'); return; }
+  if(typeof toast==='function') toast('⏳ Subiendo ' + file.name + '...');
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const fileKey = 'f_' + leadId + '_' + tipo + '_' + Date.now();
+    window.v57_saveFile(fileKey, {
+      name: file.name, type: file.type, size: file.size,
+      data: e.target.result,
+      fecha: new Date().toLocaleDateString('es-CL')
+    }).then(function(){
+      const l = leads.find(function(x){ return x.id === leadId; });
+      if(!l) return;
+      // CLAVE V72: Limpiar marca de eliminado para este campo
+      if(l._contratos_eliminados){
+        delete l._contratos_eliminados[tipo];
+        // También limpiar el legacy equivalente
+        const legacyMap = {
+          'contrato_admin_depto': 'contrato_admin_cliente',
+          'contrato_amob_depto': 'contrato_amob_cliente'
+        };
+        if(legacyMap[tipo]) delete l._contratos_eliminados[legacyMap[tipo]];
+      }
+      // Borrar archivo anterior si existe
+      if(l[tipo] && l[tipo].fileKey){
+        window.v57_deleteFile(l[tipo].fileKey).catch(function(){});
+      }
+      l[tipo] = {
+        fileKey: fileKey,
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        fecha: new Date().toLocaleDateString('es-CL')
+      };
+      // Save inmediato
+      if(typeof window.__V60_origSave === 'function'){
+        window.__V60_origSave();
+      } else if(typeof saveData === 'function'){
+        saveData();
+      }
+      if(typeof toast==='function') toast('✅ ' + file.name + ' (' + (file.size/1024/1024).toFixed(2) + ' MB)');
+      // Re-render perfil
+      if(window.perfilCurrentLeadId && typeof renderClientePerfil==='function'){
+        setTimeout(function(){
+          renderClientePerfil(window.perfilCurrentLeadId);
+        }, 100);
+      }
+    }).catch(function(err){
+      console.error('V72 upload:', err);
+      if(typeof toast==='function') toast('⚠️ Error al guardar: ' + (err && err.message || err));
+    });
+  };
+  reader.readAsDataURL(file);
+};
+
+// Limpiar todas las marcas existentes al cargar (resetea el bloqueo histórico)
+setTimeout(function(){
+  if(typeof leads !== 'undefined' && leads){
+    window.v72_limpiarMarcasEliminados();
+    if(typeof window.guardarAhoraV64 === 'function') window.guardarAhoraV64();
+    else if(typeof saveData === 'function') saveData();
+  }
+}, 5500);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
