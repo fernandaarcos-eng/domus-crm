@@ -10907,6 +10907,195 @@ setInterval(function(){
   const old = document.getElementById('v60-indicator');
   if(old) old.style.display = 'none';
 }, 1000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V66: Reset render + migrar pagos V40 + cotizaciones ══
+// ═══════════════════════════════════════════════════════════
+
+// Reset agresivo del flag bloqueante (cada 1s lo desbloquea si quedó pegado)
+setInterval(function(){
+  if(window.__V56_RENDERING){
+    window.__V56_RENDERING = false;
+  }
+}, 1000);
+
+// Helper de migración pagos V40 → V61
+window.migrarPagosV40_V66 = async function(){
+  if(!window.v57_saveFile) return;
+  if(!leads || !leads.length) return;
+  let migrados = 0;
+  for(let i = 0; i < leads.length; i++){
+    const l = leads[i];
+    if(!l.pago_amob) continue;
+    if(Array.isArray(l.pagos_amob) && l.pagos_amob.length > 0) continue; // Ya tiene array
+    const p = l.pago_amob;
+    let comprobante = null;
+    // Si tiene comprobante como string (data URL)
+    if(typeof p.comprobante === 'string' && p.comprobante.indexOf('data:') === 0){
+      const fileKey = 'v66pago_' + l.id + '_' + Date.now();
+      try {
+        await window.v57_saveFile(fileKey, {
+          name: p.comprobante_nombre || 'comprobante',
+          type: p.comprobante_tipo || 'application/octet-stream',
+          size: p.comprobante.length,
+          data: p.comprobante,
+          fecha: p.fecha || new Date().toLocaleDateString('es-CL')
+        });
+        comprobante = {
+          fileKey: fileKey,
+          name: p.comprobante_nombre || 'comprobante',
+          type: p.comprobante_tipo || 'application/octet-stream',
+          size: p.comprobante.length,
+          fecha: p.fecha
+        };
+        migrados++;
+      } catch(e){ console.warn('V66 pago_amob:', e); }
+    }
+    // Crear el array pagos_amob con esta entrada
+    l.pagos_amob = [{
+      id: 'pago_v66_' + l.id,
+      fecha: p.fecha || new Date().toISOString().slice(0,10),
+      monto: p.monto || 0,
+      comprobante: comprobante,
+      notas: ''
+    }];
+    // Limpiar el viejo
+    delete l.pago_amob;
+  }
+  if(migrados > 0){
+    console.log('V66: ' + migrados + ' pagos V40 migrados a IndexedDB');
+    if(typeof window.guardarAhoraV64 === 'function') await window.guardarAhoraV64();
+    else if(typeof saveData === 'function') saveData();
+    if(typeof toast === 'function') toast('✅ ' + migrados + ' pagos antiguos migrados');
+  }
+};
+
+// Patch getPagosAmobV61 para reconocer formato V40
+if(window.getPagosAmobV61){
+  window.getPagosAmobV61 = function(l){
+    if(Array.isArray(l.pagos_amob)) return l.pagos_amob.slice();
+    // Migrar inline desde V40
+    if(l.pago_amob){
+      const v = l.pago_amob;
+      let comprobante = null;
+      if(typeof v.comprobante === 'string' && v.comprobante.indexOf('data:') === 0){
+        // Data URL inline
+        comprobante = {
+          name: v.comprobante_nombre || 'comprobante',
+          type: v.comprobante_tipo || 'image/jpeg',
+          size: v.comprobante.length,
+          data: v.comprobante,
+          fecha: v.fecha || ''
+        };
+      } else if(v.voucher_url || v.fileKey){
+        comprobante = {
+          name: v.voucher_name || 'voucher',
+          type: v.voucher_type || 'application/pdf',
+          fileKey: v.fileKey || null,
+          data: v.voucher_url || v.voucher_data || null,
+          fecha: v.fecha || ''
+        };
+      }
+      return [{
+        id: 'pago_v40_' + l.id,
+        fecha: v.fecha || new Date().toISOString().slice(0,10),
+        monto: v.monto || 0,
+        comprobante: comprobante,
+        notas: v.notas || ''
+      }];
+    }
+    return [];
+  };
+}
+
+// Sección de cotizaciones guardadas (refuerzo de V35)
+window.renderCotizacionesV66 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    
+    // Quitar anteriores
+    mc.querySelectorAll('.section-cotizaciones-v66').forEach(function(v){ v.remove(); });
+    
+    // Recolectar TODAS las cotizaciones de todos los deptos
+    const todasCotiz = [];
+    deptos.forEach(function(d){
+      if(Array.isArray(d.cotizaciones)){
+        d.cotizaciones.forEach(function(c){
+          todasCotiz.push({cotiz: c, depto: d});
+        });
+      }
+    });
+    
+    if(todasCotiz.length === 0) return;
+    
+    // Ordenar por fecha desc
+    todasCotiz.sort(function(a,b){
+      return new Date(b.cotiz.fecha||0) - new Date(a.cotiz.fecha||0);
+    });
+    
+    const sec = document.createElement('div');
+    sec.className = 'section-cotizaciones-v66';
+    sec.style.cssText = 'margin-top:14px';
+    
+    let html = '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📋 Cotizaciones guardadas (' + todasCotiz.length + ')</div>';
+    
+    todasCotiz.forEach(function(item){
+      const c = item.cotiz;
+      const d = item.depto;
+      const total = c.total || 0;
+      const fechaFmt = c.fechaStr || (c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : 'Sin fecha');
+      const dirDepto = d.address || ('Depto #' + d.id);
+      html += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #7c3aed;border-radius:var(--rsm);padding:11px 14px;margin-bottom:8px">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:12px;font-weight:800;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📋 ' + (c.tipologiaLabel || c.tipologia || 'Cotización') + ' · ' + (c.estilo || '—') + '</div>' +
+            '<div style="font-size:10px;color:var(--text2);margin-top:2px">' +
+              '🏠 ' + dirDepto + ' · 📅 ' + fechaFmt +
+              (c.paraNombre ? ' · 👤 ' + c.paraNombre : '') +
+              (c.usuarioCreador ? ' · ✏️ ' + c.usuarioCreador : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right">' +
+            '<div style="font-size:14px;font-weight:900;color:#7c3aed">$' + (total.toLocaleString ? total.toLocaleString('es-CL') : total) + '</div>' +
+            (c.ahorro && c.ahorro > 0 ? '<div style="font-size:9px;color:#16a34a;font-weight:700">Ahorro: $' + c.ahorro.toLocaleString('es-CL') + '</div>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V66 cotiz:', e); }
+};
+
+// Llamar al final del render del perfil
+(function(){
+  if(typeof renderClientePerfil !== 'function') return;
+  const __orig = renderClientePerfil;
+  renderClientePerfil = function(currentId){
+    __orig(currentId);
+    setTimeout(function(){
+      try {
+        window.renderCotizacionesV66(currentId);
+      } catch(e){ console.warn('V66 cotiz outer:', e); }
+    }, 850);
+  };
+})();
+
+// Ejecutar migración al cargar
+function tryMigrarV66(r){
+  r = r || 0;
+  if(typeof leads !== 'undefined' && leads && leads.length && window.v57_saveFile){
+    window.migrarPagosV40_V66();
+  } else if(r < 15){
+    setTimeout(function(){ tryMigrarV66(r+1); }, 1000);
+  }
+}
+setTimeout(tryMigrarV66, 6000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
