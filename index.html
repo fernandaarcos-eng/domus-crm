@@ -11298,6 +11298,166 @@ setTimeout(function(){
     renderClientePerfil(window.perfilCurrentLeadId);
   }
 }, 2000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V68: Botones eliminar perfil + departamento ══════════
+// ═══════════════════════════════════════════════════════════
+
+window.V68_CAMPOS_ARCHIVO = ['contrato_admin_cliente','contrato_amob_cliente','contrato_admin_depto','contrato_amob_depto','pago_amob'];
+
+window.v68_limpiarArchivos = async function(l){
+  if(!l || !window.v57_deleteFile) return;
+  window.V68_CAMPOS_ARCHIVO.forEach(function(c){
+    if(l[c] && l[c].fileKey) window.v57_deleteFile(l[c].fileKey).catch(function(){});
+  });
+  if(Array.isArray(l.pagos_amob)){
+    l.pagos_amob.forEach(function(p){
+      if(p.comprobante && p.comprobante.fileKey) window.v57_deleteFile(p.comprobante.fileKey).catch(function(){});
+    });
+  }
+};
+
+window.eliminarDeptoV68 = async function(leadId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ No encontrado'); return; }
+  const nombreD = l.address || ('Depto #' + l.id);
+  const nombreCliente = l.name || '';
+  
+  if(!confirm('¿Eliminar el departamento "' + nombreD + '" de ' + nombreCliente + '?\n\nEsta acción es irreversible.')) return;
+  
+  await window.v68_limpiarArchivos(l);
+  
+  const idx = leads.findIndex(function(x){ return x.id === leadId; });
+  if(idx >= 0) leads.splice(idx, 1);
+  
+  if(window.perfilCurrentLeadId){
+    const sigueVivo = leads.find(function(x){ return x.id === window.perfilCurrentLeadId; });
+    if(sigueVivo && typeof renderClientePerfil === 'function'){
+      renderClientePerfil(window.perfilCurrentLeadId);
+    } else if(!sigueVivo){
+      window.perfilCurrentLeadId = null;
+      if(typeof showView === 'function') showView('pipeline', null);
+    }
+  }
+  
+  if(typeof window.guardarAhoraV64 === 'function') await window.guardarAhoraV64();
+  else if(typeof saveData === 'function') saveData();
+  if(typeof toast === 'function') toast('🗑️ Depto eliminado: ' + nombreD);
+};
+
+window.eliminarPerfilV68 = async function(leadId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ No encontrado'); return; }
+  const key = getClienteKey(l);
+  const deptos = getDeptosCliente(key);
+  const nombreCliente = l.name || 'Sin nombre';
+  const n = deptos.length;
+  
+  const resp = prompt(
+    '⚠️ ELIMINAR PERFIL COMPLETO\n\n' +
+    'Cliente: ' + nombreCliente + '\n' +
+    'Departamentos asociados: ' + n + '\n' +
+    'Email: ' + (l.email || '—') + '\n\n' +
+    'IRREVERSIBLE. Se borrarán todos los deptos, archivos, cuentas, contratos y notas.\n\n' +
+    'Para confirmar, escribe: ELIMINAR'
+  );
+  
+  if(resp !== 'ELIMINAR'){
+    if(resp !== null && typeof toast === 'function') toast('Cancelado - debes escribir exactamente "ELIMINAR"');
+    return;
+  }
+  
+  for(let i = 0; i < deptos.length; i++){
+    await window.v68_limpiarArchivos(deptos[i]);
+  }
+  
+  const idsAEliminar = deptos.map(function(d){ return d.id; });
+  for(let i = leads.length - 1; i >= 0; i--){
+    if(idsAEliminar.indexOf(leads[i].id) !== -1){
+      leads.splice(i, 1);
+    }
+  }
+  
+  window.perfilCurrentLeadId = null;
+  if(typeof showView === 'function') showView('pipeline', null);
+  
+  if(typeof window.guardarAhoraV64 === 'function') await window.guardarAhoraV64();
+  else if(typeof saveData === 'function') saveData();
+  if(typeof toast === 'function') toast('🗑️ Perfil eliminado: ' + nombreCliente + ' (' + n + ' depto' + (n===1?'':'s') + ')');
+};
+
+// Inyectar botones (se ejecuta como parte del render maestro)
+window.inyectarBotonesEliminarV68 = function(currentId){
+  try {
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    
+    // Botón "Eliminar perfil completo" - flotante junto al header
+    if(!document.getElementById('v68-btn-elim-perfil')){
+      const btn = document.createElement('button');
+      btn.id = 'v68-btn-elim-perfil';
+      btn.onclick = function(){ window.eliminarPerfilV68(currentId); };
+      btn.style.cssText = 'position:absolute;top:14px;right:14px;background:rgba(220,38,38,.1);color:#dc2626;border:1.5px solid rgba(220,38,38,.3);padding:7px 13px;border-radius:8px;font-size:11px;font-weight:800;cursor:pointer;font-family:inherit;transition:all .2s;z-index:20';
+      btn.innerHTML = '🗑️ Eliminar perfil';
+      btn.onmouseover = function(){ btn.style.background = '#dc2626'; btn.style.color = '#fff'; };
+      btn.onmouseout = function(){ btn.style.background = 'rgba(220,38,38,.1)'; btn.style.color = '#dc2626'; };
+      // Insertar en el mc con position relative
+      if(getComputedStyle(mc).position === 'static') mc.style.position = 'relative';
+      mc.appendChild(btn);
+    }
+    
+    // Botones en cada card de depto
+    const cards = mc.querySelectorAll('[onclick*="openModalDeptoFromPerfil"], [onclick*="abrirModalDepto"]');
+    cards.forEach(function(card){
+      if(card.querySelector('.v68-btn-elim-depto')) return;
+      const onclick = card.getAttribute('onclick') || '';
+      const m = onclick.match(/(\d+)/);
+      if(!m) return;
+      const dId = parseInt(m[1]);
+      const btn = document.createElement('button');
+      btn.className = 'v68-btn-elim-depto';
+      btn.onclick = function(e){ e.stopPropagation(); window.eliminarDeptoV68(dId); };
+      btn.style.cssText = 'position:absolute;top:8px;right:8px;background:rgba(220,38,38,.12);color:#dc2626;border:1px solid rgba(220,38,38,.3);width:28px;height:28px;border-radius:6px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10';
+      btn.innerHTML = '🗑️';
+      btn.title = 'Eliminar este departamento';
+      if(getComputedStyle(card).position === 'static') card.style.position = 'relative';
+      card.appendChild(btn);
+    });
+  } catch(e){ console.warn('V68:', e); }
+};
+
+// Extender el render maestro V67 para incluir los botones de eliminar
+if(typeof window.renderMaestroV67 === 'function'){
+  const __origMaestro = window.renderMaestroV67;
+  window.renderMaestroV67 = function(currentId){
+    __origMaestro(currentId);
+    setTimeout(function(){ window.inyectarBotonesEliminarV68(currentId); }, 400);
+  };
+} else {
+  // Si V67 no está, crear nuestro propio wrapper con setInterval
+  window.v68_aplicarSolo = function(){
+    if(typeof renderClientePerfil !== 'function') return false;
+    if(window.__V68_APLICADO_SOLO) return true;
+    const __orig = renderClientePerfil;
+    window.renderClientePerfil = function(currentId){
+      __orig(currentId);
+      setTimeout(function(){ window.inyectarBotonesEliminarV68(currentId); }, 400);
+    };
+    window.__V68_APLICADO_SOLO = true;
+    return true;
+  };
+  let __v68_int = 0;
+  const __v68i = setInterval(function(){
+    __v68_int++;
+    if(window.v68_aplicarSolo() || __v68_int > 30) clearInterval(__v68i);
+  }, 300);
+}
+
+// Auto-recargar si estamos en un perfil
+setTimeout(function(){
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+    renderClientePerfil(window.perfilCurrentLeadId);
+  }
+}, 2500);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
