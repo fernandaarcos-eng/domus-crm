@@ -11096,6 +11096,208 @@ function tryMigrarV66(r){
   }
 }
 setTimeout(tryMigrarV66, 6000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V67: Render maestro del perfil (consolidado) ═════════
+// ═══════════════════════════════════════════════════════════
+
+// Función para inyectar CUENTAS BANCARIAS
+window.inyectarCuentasV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-cuentas-v55, .section-cuentas-v56, .section-cuentas-v67').forEach(function(v){ v.remove(); });
+    const cuentas = window.getCuentasV55 ? window.getCuentasV55(deptos) : [];
+    const sec = document.createElement('div');
+    sec.className = 'section-cuentas-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let html = '';
+    cuentas.forEach(function(c, idx){
+      const deptosCheckboxes = deptos.map(function(d){
+        const checked = (c.deptos_ids||[]).indexOf(d.id) !== -1 ? 'checked' : '';
+        const nombreD = d.address || ('Depto #' + d.id);
+        return '<label style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;font-size:11px;cursor:pointer"><input type="checkbox" ' + checked + ' onchange="toggleCtaDeptoV55(\'' + key + '\',\'' + c.id + '\',' + d.id + ')"><span>' + (nombreD.length>32?nombreD.slice(0,32)+'…':nombreD) + '</span></label>';
+      }).join('');
+      html += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #16a34a;border-radius:var(--rsm);margin-bottom:10px;overflow:hidden">' +
+        '<div onclick="toggleCtaPlegarV55(\'' + c.id + '\')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(22,163,74,.06)">' +
+          '<div style="display:flex;align-items:center;gap:10px"><span id="cta-arr-v55-' + c.id + '" style="font-size:11px;color:#16a34a">' + (idx===0?'▼':'▶') + '</span><span style="font-size:13px;font-weight:800;color:#15803d">💳 ' + (c.nombre||('Cuenta '+(idx+1))) + '</span>' + (c.banco?'<span style="font-size:10px;color:var(--text2);font-weight:600">' + c.banco + (c.numero?' · '+c.numero:'') + '</span>':'') + '</div>' +
+          '<button onclick="event.stopPropagation();eliminarCtaV55(\'' + key + '\',\'' + c.id + '\')" style="background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>' +
+        '</div>' +
+        '<div id="cta-body-v55-' + c.id + '" style="padding:14px 18px;display:' + (idx===0?'block':'none') + '">' +
+          '<div class="field"><label>📝 Nombre</label><input value="' + (c.nombre||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'nombre\',this.value)"></div>' +
+          '<div class="field"><label>👤 Titular</label><input value="' + (c.titular||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'titular\',this.value)"></div>' +
+          '<div class="field"><label>🪪 RUT</label><input value="' + (c.rut||'').replace(/"/g,'&quot;') + '" placeholder="12.345.678-9" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'rut\',this.value)"></div>' +
+          '<div class="frow"><div class="field"><label>🏦 Banco</label><input value="' + (c.banco||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'banco\',this.value)"></div><div class="field"><label>📋 Tipo</label><select onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'tipo\',this.value)"><option value="">—</option>' + ['Cuenta Corriente','Cuenta Vista','Cuenta de Ahorro','Cuenta Rut'].map(function(t){return '<option '+(c.tipo===t?'selected':'')+'>'+t+'</option>'}).join('') + '</select></div></div>' +
+          '<div class="field"><label>🔢 Número</label><input value="' + (c.numero||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'numero\',this.value)"></div>' +
+          '<div class="field"><label>📧 Email</label><input value="' + (c.email||'').replace(/"/g,'&quot;') + '" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'email\',this.value)"></div>' +
+          '<div class="field"><label>📝 Notas</label><textarea rows="2" onchange="updCtaV55(\'' + key + '\',\'' + c.id + '\',\'notas\',this.value)">' + (c.notas||'') + '</textarea></div>' +
+          (deptos.length > 1 ? '<div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-radius:8px"><div style="font-size:10px;font-weight:800;color:var(--text2);text-transform:uppercase;margin-bottom:6px">🏠 Asociada a estos deptos</div>' + deptosCheckboxes + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    });
+    if(cuentas.length === 0) html = '<div style="padding:18px;text-align:center;color:var(--text2);font-size:12px;background:var(--surface);border:2px dashed var(--border);border-radius:var(--rsm)">Sin cuentas bancarias registradas</div>';
+    sec.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">💳 Cuentas bancarias' + (cuentas.length>0?' ('+cuentas.length+')':'') + '</div><button onclick="agregarCtaV55(\'' + key + '\')" class="btn btn-sm btn-p" style="padding:6px 12px;font-size:11px">+ Agregar cuenta</button></div>' + html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V67 cuentas:', e); }
+};
+
+// Inyectar CONTRATOS POR DEPTO
+window.inyectarContratosV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    let deptos = getDeptosCliente(key);
+    const vistos = {};
+    deptos = deptos.filter(function(d){ if(vistos[d.id]) return false; vistos[d.id] = true; return true; });
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-contratos-v55, .section-contratos-v56, .section-contratos-v67').forEach(function(v){ v.remove(); });
+    function tarjeta(leadId, tipo, label, color, contrato){
+      if(contrato){
+        return '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ' + color + ';border-radius:var(--rsm);padding:11px 13px"><div style="font-size:10px;font-weight:900;color:' + color + ';margin-bottom:8px;text-transform:uppercase">' + label + '</div><div style="display:flex;align-items:center;gap:9px;padding:7px 9px;background:var(--bg);border-radius:6px"><div style="width:44px;height:44px;background:' + color + ';border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px">📄</div><div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + contrato.name + '</div><div style="display:flex;gap:8px;margin-top:2px"><a href="javascript:void(0)" onclick="verArchivoV57(' + leadId + ',\'' + tipo + '\',\'open\')" style="font-size:10px;color:#2563eb;font-weight:700;text-decoration:none">↗ Abrir</a><a href="javascript:void(0)" onclick="verArchivoV57(' + leadId + ',\'' + tipo + '\',\'download\')" style="font-size:10px;color:#2563eb;font-weight:700;text-decoration:none">↓ Descargar</a></div></div><button onclick="deleteContratoDepto(' + leadId + ',\'' + tipo + '\')" style="background:none;border:2px solid var(--border2);color:#dc2626;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px">🗑️</button></div></div>';
+      }
+      return '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid ' + color + ';border-radius:var(--rsm);padding:11px 13px"><div style="font-size:10px;font-weight:900;color:' + color + ';margin-bottom:8px;text-transform:uppercase">' + label + '</div><label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:12px;background:#fff;border:2px dashed ' + color + ';color:' + color + ';border-radius:var(--rsm);font-size:11px;font-weight:700">📎 Subir archivo<input type="file" accept=".pdf,image/*" style="display:none" onchange="uploadContratoDepto(' + leadId + ',\'' + tipo + '\',this)"></label></div>';
+    }
+    const sec = document.createElement('div');
+    sec.className = 'section-contratos-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase">📄 Contratos por departamento (' + deptos.length + ')</div><span style="font-size:9px;color:var(--text3);font-style:italic">Máx 20MB</span></div>';
+    deptos.forEach(function(d){
+      const esAdminAmob = d.tipo_contrato === 'admin_amob';
+      const nombreD = d.address || ('Depto #' + d.id);
+      html += '<div style="background:var(--bg);border:2px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap"><div style="width:8px;height:8px;background:#7c3aed;border-radius:50%"></div><div style="font-size:12px;font-weight:900">🏠 ' + nombreD + '</div><span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + (esAdminAmob?'Admin + Amoblado':'Solo Administración') + '</span></div><div style="display:grid;grid-template-columns:' + (esAdminAmob?'1fr 1fr':'1fr') + ';gap:8px">' + tarjeta(d.id, 'contrato_admin_depto', '📄 Contrato Administración', '#2563eb', d.contrato_admin_depto) + (esAdminAmob ? tarjeta(d.id, 'contrato_amob_depto', '🛋️ Contrato Amoblado', '#7c3aed', d.contrato_amob_depto) : '') + '</div></div>';
+    });
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V67 contratos:', e); }
+};
+
+// Inyectar PAGOS AMOBLADO
+window.inyectarPagosV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const deptosAmob = deptos.filter(function(d){ return d.tipo_contrato === 'admin_amob'; });
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-pagos-v61, .section-pagos-v67').forEach(function(v){ v.remove(); });
+    if(deptosAmob.length === 0) return;
+    const sec = document.createElement('div');
+    sec.className = 'section-pagos-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let html = '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;margin-bottom:10px">💰 Pagos del amoblado</div>';
+    deptosAmob.forEach(function(d){
+      const pagos = window.getPagosAmobV61 ? window.getPagosAmobV61(d) : [];
+      const total = pagos.reduce(function(s,p){ return s + (parseInt(p.monto)||0); }, 0);
+      const nombreD = d.address || ('Depto #' + d.id);
+      html += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #f59e0b;border-radius:var(--rsm);padding:14px 16px;margin-bottom:12px"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0"><span style="font-size:11px;font-weight:800">🏠 ' + nombreD + '</span> <span style="font-size:10px;color:var(--text3);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + pagos.length + ' pago' + (pagos.length===1?'':'s') + '</span></div><div style="display:flex;align-items:center;gap:10px"><span style="font-size:14px;font-weight:900;color:#d97706">$' + total.toLocaleString('es-CL') + '</span><button onclick="agregarPagoV61(' + d.id + ')" style="padding:5px 12px;font-size:10px;background:#f59e0b;color:#fff;border:none;font-weight:800;border-radius:6px;cursor:pointer">+ Agregar pago</button></div></div>';
+      if(pagos.length === 0){
+        html += '<div style="padding:14px;text-align:center;color:var(--text2);font-size:11px;background:var(--bg);border:1px dashed var(--border);border-radius:6px">Sin pagos</div>';
+      } else {
+        pagos.forEach(function(p, idx){
+          html += '<div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap"><span style="font-size:11px;font-weight:800;background:#fff;padding:3px 10px;border-radius:12px;border:1px solid var(--border)">Pago ' + (idx+1) + '</span><input type="date" value="' + (p.fecha||'') + '" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'fecha\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px"><input type="text" value="' + (p.monto||0) + '" oninput="this.value=this.value.replace(/[^\\d]/g,\'\')" onchange="updPagoV61(' + d.id + ',\'' + p.id + '\',\'monto\',this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:5px;width:120px;font-weight:700"><button onclick="eliminarPagoV61(' + d.id + ',\'' + p.id + '\')" style="margin-left:auto;background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button></div>';
+          if(p.comprobante){
+            html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-radius:5px;border:1px solid var(--border)"><span style="font-size:18px">📄</span><div style="flex:1;min-width:0"><div style="font-size:10px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + p.comprobante.name + '</div><div style="display:flex;gap:8px;margin-top:1px"><a href="javascript:void(0)" onclick="verComprobantePagoV61(' + d.id + ',\'' + p.id + '\',\'open\')" style="font-size:9px;color:#2563eb;font-weight:700">↗ Abrir</a><a href="javascript:void(0)" onclick="verComprobantePagoV61(' + d.id + ',\'' + p.id + '\',\'download\')" style="font-size:9px;color:#2563eb;font-weight:700">↓ Descargar</a><a href="javascript:void(0)" onclick="eliminarComprobantePagoV61(' + d.id + ',\'' + p.id + '\')" style="font-size:9px;color:#dc2626;font-weight:700">🗑️ Borrar</a></div></div></div>';
+          } else {
+            html += '<label style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:8px;background:#fff;border:2px dashed #f59e0b;color:#d97706;border-radius:5px;font-size:10px;font-weight:700">📎 Subir comprobante<input type="file" accept=".pdf,image/*" style="display:none" onchange="uploadComprobantePagoV61(' + d.id + ',\'' + p.id + '\',this)"></label>';
+          }
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    });
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V67 pagos:', e); }
+};
+
+// Inyectar NOTAS GEMINI (re-usa la lógica de V59)
+window.inyectarNotasV67 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-notas-gemini-v59, .section-notas-v67').forEach(function(v){ v.remove(); });
+    const notas = window.getNotasGeminiV59 ? window.getNotasGeminiV59(deptos) : [];
+    const sec = document.createElement('div');
+    sec.className = 'section-notas-v67';
+    sec.style.cssText = 'margin-top:14px';
+    let notasHtml = '';
+    if(notas.length === 0){
+      notasHtml = '<div style="padding:18px;text-align:center;color:var(--text2);font-size:12px;background:var(--surface);border:2px dashed var(--border);border-radius:var(--rsm)">Sin notas. Click en <b>+ Agregar nota</b>.</div>';
+    } else {
+      notas.forEach(function(n, idx){
+        const fechaFmt = n.fecha ? new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-CL') : 'Sin fecha';
+        const titMuestra = n.titulo || 'Reunión ' + (idx+1);
+        const linkLimpio = n.link && !/^https?:/i.test(n.link) ? 'https://' + n.link : (n.link || '');
+        notasHtml += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #4285f4;border-radius:var(--rsm);margin-bottom:10px;overflow:hidden">' +
+          '<div onclick="toggleNotaPlegarV59(\'' + n.id + '\')" style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;cursor:pointer;background:rgba(66,133,244,.06)">' +
+            '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0"><span id="nota-arr-v59-' + n.id + '" style="font-size:11px;color:#4285f4">' + (idx===0?'▼':'▶') + '</span><span style="font-size:18px">📝</span><span style="font-size:13px;font-weight:800;color:#1e40af;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + titMuestra + '</span><span style="font-size:10px;color:var(--text2);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">' + fechaFmt + '</span>' + (linkLimpio?'<a href="' + linkLimpio + '" target="_blank" onclick="event.stopPropagation()" style="font-size:11px;color:#4285f4;font-weight:700;text-decoration:none">↗ Abrir doc</a>':'') + '</div>' +
+            '<button onclick="event.stopPropagation();eliminarNotaGeminiV59(\'' + key + '\',\'' + n.id + '\')" style="background:none;border:1px solid var(--border2);color:#dc2626;padding:4px 8px;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>' +
+          '</div>' +
+          '<div id="nota-body-v59-' + n.id + '" style="padding:14px 18px;display:' + (idx===0?'block':'none') + '">' +
+            '<div class="frow"><div class="field"><label>📅 Fecha</label><input type="date" value="' + (n.fecha||'') + '" onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'fecha\',this.value)"></div><div class="field"><label>🎯 Título</label><input value="' + (n.titulo||'').replace(/"/g,'&quot;') + '" onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'titulo\',this.value)"></div></div>' +
+            '<div class="field"><label>🔗 Link al doc</label><input type="url" value="' + (n.link||'').replace(/"/g,'&quot;') + '" placeholder="https://docs.google.com/document/d/..." onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'link\',this.value)"></div>' +
+            '<div class="field"><label>📄 Resumen</label><textarea rows="6" onchange="updNotaGeminiV59(\'' + key + '\',\'' + n.id + '\',\'texto\',this.value)" style="font-family:inherit;line-height:1.5">' + (n.texto||'') + '</textarea></div>' +
+          '</div>' +
+        '</div>';
+      });
+    }
+    sec.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px"><div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase">📝 Notas de reuniones (Gemini)' + (notas.length>0?' ('+notas.length+')':'') + '</div><button onclick="agregarNotaGeminiV59(\'' + key + '\')" style="padding:6px 12px;font-size:11px;background:#4285f4;color:#fff;border:none;font-weight:800;border-radius:6px;cursor:pointer">+ Agregar nota</button></div>' + notasHtml;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V67 notas:', e); }
+};
+
+// Render maestro: ejecuta todas las inyecciones
+window.renderMaestroV67 = function(currentId){
+  setTimeout(function(){
+    window.inyectarCuentasV67 && window.inyectarCuentasV67(currentId);
+    window.inyectarContratosV67 && window.inyectarContratosV67(currentId);
+    window.inyectarPagosV67 && window.inyectarPagosV67(currentId);
+    window.inyectarNotasV67 && window.inyectarNotasV67(currentId);
+    window.renderCotizacionesV66 && window.renderCotizacionesV66(currentId);
+  }, 300);
+};
+
+// Aplicar wrapper con espera robusta
+window.v67_aplicarWrapper = function(){
+  if(typeof renderClientePerfil !== 'function') return false;
+  if(window.__V67_APLICADO) return true;
+  const __origV67 = renderClientePerfil;
+  window.__origRenderV67 = __origV67;
+  window.renderClientePerfil = function(currentId){
+    __origV67(currentId);
+    window.renderMaestroV67(currentId);
+  };
+  window.__V67_APLICADO = true;
+  console.log('✅ V67 wrapper aplicado');
+  return true;
+};
+
+// Intentar aplicar repetidamente
+let __v67_intentos = 0;
+const __v67_interval = setInterval(function(){
+  __v67_intentos++;
+  if(window.v67_aplicarWrapper() || __v67_intentos > 30){
+    clearInterval(__v67_interval);
+  }
+}, 300);
+
+// Si ya estamos en un perfil, re-renderizar
+setTimeout(function(){
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+    renderClientePerfil(window.perfilCurrentLeadId);
+  }
+}, 2000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
