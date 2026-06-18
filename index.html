@@ -12300,6 +12300,92 @@ window.inyectarPagosV67 = function(currentId){
     mc.appendChild(sec);
   } catch(e){ console.warn('V75 pagos:', e); }
 };
+  // ═══ V76: Abrir comprobantes legacy ═══
+
+window.abrirComprobanteV74 = function(leadId, pagoId, compId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+  const p = (l.pagos_amob || []).find(function(x){ return x.id === pagoId; });
+  if(!p){ if(typeof toast==='function')toast('⚠️ Pago no encontrado'); return; }
+  const comps = window.getComprobantesV74 ? window.getComprobantesV74(p) : [];
+  const c = comps.find(function(x){ return x.id === compId; });
+  if(!c){ if(typeof toast==='function')toast('⚠️ Comprobante no encontrado'); return; }
+  
+  // 1) Si tiene driveUrl, abrir el link de Drive
+  if(c.driveUrl){
+    window.open(c.driveUrl, '_blank');
+    return;
+  }
+  
+  // 2) Si tiene data URL inline (V40)
+  if(c.data && typeof c.data === 'string' && c.data.indexOf('data:') === 0){
+    fetch(c.data).then(function(r){ return r.blob(); }).then(function(blob){
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    }).catch(function(err){
+      if(typeof toast==='function') toast('⚠️ Error abriendo: ' + err);
+    });
+    return;
+  }
+  
+  // 3) Si tiene fileKey, leer de IndexedDB
+  if(c.fileKey && window.v57_getFile){
+    window.v57_getFile(c.fileKey).then(function(file){
+      if(!file){
+        if(typeof toast==='function') toast('⚠️ Archivo no encontrado en este PC. Pide a quien lo subió que comparta el link de Drive.');
+        return;
+      }
+      fetch(file.data).then(function(r){ return r.blob(); }).then(function(blob){
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+      });
+    }).catch(function(err){
+      if(typeof toast==='function') toast('⚠️ Error: ' + err);
+    });
+    return;
+  }
+  
+  // 4) Nada disponible
+  if(typeof toast==='function') toast('⚠️ Este comprobante no tiene link ni archivo asociado');
+};
+
+// Igual para descargar (si existe)
+window.descargarComprobanteV74 = function(leadId, pagoId, compId){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const p = (l.pagos_amob || []).find(function(x){ return x.id === pagoId; });
+  if(!p) return;
+  const comps = window.getComprobantesV74 ? window.getComprobantesV74(p) : [];
+  const c = comps.find(function(x){ return x.id === compId; });
+  if(!c) return;
+  
+  if(c.driveUrl){
+    window.open(c.driveUrl, '_blank');
+    return;
+  }
+  
+  function descargarBlob(blob, name){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name || 'comprobante';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  }
+  
+  if(c.data && typeof c.data === 'string'){
+    fetch(c.data).then(function(r){return r.blob()}).then(function(b){ descargarBlob(b, c.nombre || c.name); });
+    return;
+  }
+  
+  if(c.fileKey && window.v57_getFile){
+    window.v57_getFile(c.fileKey).then(function(file){
+      if(!file){ if(typeof toast==='function')toast('⚠️ Archivo no encontrado'); return; }
+      fetch(file.data).then(function(r){return r.blob()}).then(function(b){ descargarBlob(b, file.name); });
+    });
+  }
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
