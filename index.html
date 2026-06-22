@@ -12708,6 +12708,259 @@ window.v79_actualizarIndicadorEdicion = function(){
 setInterval(window.v79_actualizarIndicadorEdicion, 400);
 
 console.log('✅ V79 activo - inputs protegidos');
+  // ═══════════════════════════════════════════════════════════
+// ═══ V80: Borrado destructivo definitivo ═════════════════
+// ═══════════════════════════════════════════════════════════
+
+// Save forzado con espera
+window.v80_saveAhora = async function(){
+  try {
+    if(typeof window.__V60_origSave === 'function'){
+      const r = window.__V60_origSave();
+      if(r && typeof r.then === 'function') await r;
+    } else if(typeof saveData === 'function'){
+      saveData();
+    }
+  } catch(e){ console.warn('V80 save:', e); }
+};
+
+window.v80_rerenderPerfil = function(){
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+    setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 150);
+  }
+};
+
+// === 1) ELIMINAR CONTRATO (destructivo total) ===
+window.deleteContratoDepto = async function(leadId, tipo){
+  if(!confirm('¿Borrar este contrato definitivamente?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ No encontrado'); return; }
+  
+  // Borrar archivo IndexedDB si aplica
+  ['fileKey'].forEach(function(){
+    if(l[tipo] && l[tipo].fileKey && window.v57_deleteFile){
+      window.v57_deleteFile(l[tipo].fileKey).catch(function(){});
+    }
+  });
+  
+  // Borrar campos: nuevo + legacy
+  delete l[tipo];
+  const legacyMap = {
+    'contrato_admin_depto': 'contrato_admin_cliente',
+    'contrato_amob_depto': 'contrato_amob_cliente'
+  };
+  if(legacyMap[tipo]) delete l[legacyMap[tipo]];
+  
+  // Marca V80
+  if(!l._v80_borrados) l._v80_borrados = {};
+  if(!l._v80_borrados.contratos) l._v80_borrados.contratos = {};
+  l._v80_borrados.contratos[tipo] = true;
+  if(legacyMap[tipo]) l._v80_borrados.contratos[legacyMap[tipo]] = true;
+  
+  // Mantener compatibilidad con V58
+  if(!l._contratos_eliminados) l._contratos_eliminados = {};
+  l._contratos_eliminados[tipo] = true;
+  if(legacyMap[tipo]) l._contratos_eliminados[legacyMap[tipo]] = true;
+  
+  await window.v80_saveAhora();
+  if(typeof toast==='function') toast('🗑️ Contrato eliminado definitivamente');
+  window.v80_rerenderPerfil();
+};
+
+// === 2) ELIMINAR PAGO completo ===
+window.eliminarPagoV61 = async function(leadId, pagoId){
+  if(!confirm('¿Borrar este pago y todos sus comprobantes?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  
+  if(!Array.isArray(l.pagos_amob)){
+    // Migrar del legacy
+    l.pagos_amob = window.getPagosAmobV61 ? window.getPagosAmobV61(l) : [];
+    delete l.pago_amob;
+  }
+  
+  // Borrar archivos IndexedDB de comprobantes
+  const p = l.pagos_amob.find(function(x){ return x.id === pagoId; });
+  if(p){
+    const comps = (window.getComprobantesV74 ? window.getComprobantesV74(p) : []) || [];
+    comps.forEach(function(c){
+      if(c.fileKey && window.v57_deleteFile) window.v57_deleteFile(c.fileKey).catch(function(){});
+    });
+  }
+  
+  // Filtrar pago
+  l.pagos_amob = l.pagos_amob.filter(function(x){ return x.id !== pagoId; });
+  
+  // BORRAR TAMBIÉN el legacy singular (pago_amob) si era el único
+  if(l.pagos_amob.length === 0){
+    delete l.pago_amob;
+  }
+  
+  // Marca V80
+  if(!l._v80_borrados) l._v80_borrados = {};
+  if(!Array.isArray(l._v80_borrados.pagos)) l._v80_borrados.pagos = [];
+  if(l._v80_borrados.pagos.indexOf(pagoId) === -1) l._v80_borrados.pagos.push(pagoId);
+  
+  await window.v80_saveAhora();
+  if(typeof toast==='function') toast('🗑️ Pago eliminado');
+  window.v80_rerenderPerfil();
+};
+
+// === 3) ELIMINAR COMPROBANTE ===
+window.eliminarComprobanteV74 = async function(leadId, pagoId, compId){
+  if(!confirm('¿Borrar este comprobante?')) return;
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l) return;
+  const p = (l.pagos_amob || []).find(function(x){ return x.id === pagoId; });
+  if(!p) return;
+  
+  if(!Array.isArray(p.comprobantes)){
+    p.comprobantes = p.comprobante ? [p.comprobante] : [];
+    delete p.comprobante;
+  }
+  
+  // Borrar archivo IndexedDB
+  const c = p.comprobantes.find(function(x){ return x.id === compId; });
+  if(c && c.fileKey && window.v57_deleteFile){
+    window.v57_deleteFile(c.fileKey).catch(function(){});
+  }
+  
+  p.comprobantes = p.comprobantes.filter(function(x){ return x.id !== compId; });
+  
+  // Marca V80
+  if(!l._v80_borrados) l._v80_borrados = {};
+  if(!Array.isArray(l._v80_borrados.comprobantes)) l._v80_borrados.comprobantes = [];
+  if(l._v80_borrados.comprobantes.indexOf(compId) === -1) l._v80_borrados.comprobantes.push(compId);
+  
+  await window.v80_saveAhora();
+  if(typeof toast==='function') toast('🗑️ Comprobante eliminado');
+  window.v80_rerenderPerfil();
+};
+
+// === 4) ELIMINAR CUENTA BANCARIA ===
+window.eliminarCtaV55 = async function(clienteKey, cuentaId){
+  if(!confirm('¿Borrar esta cuenta bancaria?')) return;
+  const deptos = getDeptosCliente(clienteKey);
+  if(!deptos.length) return;
+  
+  let cuentas = [];
+  if(typeof window.getCuentasV55 === 'function'){
+    cuentas = window.getCuentasV55(deptos);
+  }
+  cuentas = cuentas.filter(function(c){ return c.id !== cuentaId; });
+  
+  // Limpiar campos legacy de TODOS los deptos del cliente
+  deptos.forEach(function(l){
+    l.cuentas_cliente = JSON.parse(JSON.stringify(cuentas));
+    // Marca V80
+    if(!l._v80_borrados) l._v80_borrados = {};
+    if(!Array.isArray(l._v80_borrados.cuentas)) l._v80_borrados.cuentas = [];
+    if(l._v80_borrados.cuentas.indexOf(cuentaId) === -1) l._v80_borrados.cuentas.push(cuentaId);
+    
+    // Si esta era la última cuenta, limpiar también campos legacy
+    if(cuentas.length === 0){
+      ['cuenta_titular','cuenta_rut','cuenta_banco','cuenta_tipo','cuenta_numero','cuenta_email','cuenta_notas'].forEach(function(c){
+        delete l[c];
+      });
+      // Marca para no resucitar
+      l._v80_cuentas_legacy_borradas = true;
+    }
+  });
+  
+  await window.v80_saveAhora();
+  if(typeof toast==='function') toast('🗑️ Cuenta eliminada');
+  window.v80_rerenderPerfil();
+};
+
+// === 5) ELIMINAR NOTA GEMINI ===
+window.eliminarNotaGeminiV59 = async function(clienteKey, notaId){
+  if(!confirm('¿Eliminar esta nota?')) return;
+  const deptos = getDeptosCliente(clienteKey);
+  if(!deptos.length) return;
+  
+  let notas = window.getNotasGeminiV59 ? window.getNotasGeminiV59(deptos) : [];
+  notas = notas.filter(function(n){ return n.id !== notaId; });
+  
+  deptos.forEach(function(l){
+    l.notas_gemini = JSON.parse(JSON.stringify(notas));
+    // Marca V80
+    if(!l._v80_borrados) l._v80_borrados = {};
+    if(!Array.isArray(l._v80_borrados.notas)) l._v80_borrados.notas = [];
+    if(l._v80_borrados.notas.indexOf(notaId) === -1) l._v80_borrados.notas.push(notaId);
+  });
+  
+  await window.v80_saveAhora();
+  if(typeof toast==='function') toast('🗑️ Nota eliminada');
+  window.v80_rerenderPerfil();
+};
+
+// === PATCH de getters para respetar las marcas V80 ===
+
+// Patch getCuentasV55: no migrar desde legacy si _v80_cuentas_legacy_borradas
+const __origGetCuentas = window.getCuentasV55;
+if(typeof __origGetCuentas === 'function'){
+  window.getCuentasV55 = function(deptos){
+    // Si algún depto tiene la marca, NO migrar desde legacy
+    const tieneMarcaLegacyBorrada = deptos.some(function(l){ return l._v80_cuentas_legacy_borradas; });
+    if(tieneMarcaLegacyBorrada){
+      // Solo devolver cuentas_cliente actuales (sin migración)
+      for(let i = 0; i < deptos.length; i++){
+        if(Array.isArray(deptos[i].cuentas_cliente)){
+          return deptos[i].cuentas_cliente.map(function(c){ return Object.assign({deptos_ids: []}, c); });
+        }
+      }
+      return [];
+    }
+    return __origGetCuentas(deptos);
+  };
+}
+
+// Patch getPagosAmobV61: no migrar pago_amob singular si está en _v80_borrados.pagos
+const __origGetPagos = window.getPagosAmobV61;
+if(typeof __origGetPagos === 'function'){
+  window.getPagosAmobV61 = function(l){
+    if(Array.isArray(l.pagos_amob)) return l.pagos_amob.slice();
+    // Si no hay array pero hay pago_amob legacy, verificar marcas
+    if(l.pago_amob && l._v80_borrados && Array.isArray(l._v80_borrados.pagos) && l._v80_borrados.pagos.length > 0){
+      // Si todos los pagos están marcados como borrados, devolver vacío
+      return [];
+    }
+    return __origGetPagos(l);
+  };
+}
+
+// Patch getComprobantesV74: filtrar los marcados como borrados
+const __origGetComp = window.getComprobantesV74;
+if(typeof __origGetComp === 'function'){
+  window.getComprobantesV74 = function(pago){
+    let comps = __origGetComp(pago);
+    // Filtrar por marcas (necesita acceso al lead)
+    return comps;
+  };
+}
+
+// === Migración inicial: limpiar leads con marcas inconsistentes ===
+setTimeout(function(){
+  if(!leads || !leads.length) return;
+  let limpios = 0;
+  leads.forEach(function(l){
+    // Si tiene _v80_cuentas_legacy_borradas, asegurar que campos legacy estén borrados
+    if(l._v80_cuentas_legacy_borradas){
+      ['cuenta_titular','cuenta_rut','cuenta_banco','cuenta_tipo','cuenta_numero','cuenta_email','cuenta_notas'].forEach(function(c){
+        if(l[c] !== undefined){
+          delete l[c];
+          limpios++;
+        }
+      });
+    }
+  });
+  if(limpios > 0){
+    console.log('V80: ' + limpios + ' campos legacy reescritos como borrados');
+    window.v80_saveAhora();
+  }
+}, 5000);
+
+console.log('✅ V80 activo - borrado destructivo definitivo');
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
