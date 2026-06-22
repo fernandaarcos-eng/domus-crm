@@ -13500,6 +13500,37 @@ setInterval(function(){
     });
   });
 }, 800);
+  // ═══ V87: Deduplicar cerradura electrónica ═══
+
+window.v87_dedupCerradura = function(){
+  // Buscar todas las filas v83
+  const filas = Array.from(document.querySelectorAll('tr[data-v83="1"]'));
+  if(filas.length <= 1) return;
+  
+  // Dejar solo la PRIMERA con checkbox (si alguna tiene)
+  // Si ninguna tiene, dejar la primera
+  let conservar = filas.find(function(tr){ return tr.querySelector('input[type=checkbox]'); }) || filas[0];
+  
+  filas.forEach(function(tr){
+    if(tr !== conservar) tr.remove();
+  });
+};
+
+setInterval(window.v87_dedupCerradura, 600);
+setTimeout(window.v87_dedupCerradura, 1000);
+setTimeout(window.v87_dedupCerradura, 3000);
+
+// Sobrescribir v83 para que NUNCA cree duplicados
+const __v83_orig_safe = window.v83_inyectarChapaJuntoFlete;
+window.v83_inyectarChapaJuntoFlete = function(){
+  // Si ya existe al menos una fila v83 en el documento, no hacer nada
+  if(document.querySelector('tr[data-v83="1"]')){
+    // Solo verificar/actualizar la existente vía V86
+    return;
+  }
+  // Si no, ejecutar el original
+  if(typeof __v83_orig_safe === 'function') return __v83_orig_safe.apply(this, arguments);
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
