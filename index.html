@@ -13429,6 +13429,25 @@ window.v83_inyectarChapaJuntoFlete = function(){
 window.v84_precioChapa = function(){
   return window.v84_chapaActiva() ? window.V83_CHAPA_PRECIO : 0;
 };
+  // ═══════════════════════════════════════════════════════════
+// ═══ V85: Renombrar a Cerradura electrónica biométrica ════
+// ═══════════════════════════════════════════════════════════
+
+window.V83_CHAPA_NOMBRE = 'CERRADURA ELECTRÓNICA BIOMÉTRICA';
+
+// Limpiar cualquier fila vieja con el nombre anterior + sin checkbox
+setInterval(function(){
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  document.querySelectorAll('tr[data-v83="1"]').forEach(function(tr){
+    const primeraTd = tr.cells[0];
+    const texto = primeraTd ? primeraTd.textContent.trim().toUpperCase() : '';
+    const tieneCheckbox = !!tr.querySelector('input[type=checkbox]');
+    // Si tiene el nombre viejo o no tiene checkbox, eliminar para que V85+V84 lo recree con el nuevo nombre
+    if(texto.indexOf('CHAPA ELECTRÓNICA') > -1 || !tieneCheckbox){
+      tr.remove();
+    }
+  });
+}, 1000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
