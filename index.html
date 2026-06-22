@@ -13311,6 +13311,124 @@ window.v83_inyectarChapaJuntoFlete = function(){
 setInterval(window.v83_inyectarChapaJuntoFlete, 1500);
 setTimeout(window.v83_inyectarChapaJuntoFlete, 800);
 setTimeout(window.v83_inyectarChapaJuntoFlete, 2000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V84: Chapa electrónica desmarcable ══════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.V84_CHAPA_KEY = 'CHAPA_ELECTRONICA_V84';
+
+// Estado del checkbox (por defecto MARCADO)
+window.v84_chapaActiva = function(){
+  const v = sessionStorage.getItem('v84_chapa_activa');
+  return v === null ? true : v === '1';
+};
+
+window.v84_toggleChapa = function(activa){
+  sessionStorage.setItem('v84_chapa_activa', activa ? '1' : '0');
+  
+  // Re-render visual: tachar/destachar montos
+  document.querySelectorAll('tr[data-v83="1"]').forEach(function(tr){
+    Array.from(tr.cells).slice(2).forEach(function(td){
+      if(!activa){
+        td.style.textDecoration = 'line-through';
+        td.style.color = '#9ca3af';
+      } else {
+        td.style.textDecoration = '';
+        td.style.color = '';
+      }
+    });
+  });
+  
+  // Usar el sistema existente si existe (V18/V28)
+  if(typeof window.toggleItemDesmarcado === 'function'){
+    try { window.toggleItemDesmarcado(window.V84_CHAPA_KEY); } catch(e){}
+  }
+  
+  // Recalcular totales del cotizador
+  if(typeof window.calcularTotales === 'function'){ try{window.calcularTotales();}catch(e){} }
+  if(typeof window.renderCotizador === 'function'){ try{window.renderCotizador();}catch(e){} }
+  
+  // Si el cotizador interno tiene una función actualizar
+  ['actualizarTotales','recalcularTotal','recalc','updateCotizador'].forEach(function(fn){
+    if(typeof window[fn] === 'function'){ try{window[fn]();}catch(e){} }
+  });
+};
+
+// Sobreescribir v83 con la nueva versión con checkbox
+window.v83_inyectarChapaJuntoFlete = function(){
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  
+  const todos = document.querySelectorAll('td');
+  Array.from(todos).forEach(function(td){
+    if(td.textContent.trim() !== 'FLETE') return;
+    const tr = td.closest('tr');
+    if(!tr) return;
+    const tbody = tr.parentElement;
+    if(!tbody) return;
+    
+    // Si ya existe la fila, solo actualizar el visual según el estado
+    let siguiente = tr.nextElementSibling;
+    const activa = window.v84_chapaActiva();
+    
+    if(siguiente && siguiente.dataset && siguiente.dataset.v83 === '1'){
+      // Ya existe, solo actualizar checkbox y estilo
+      const cb = siguiente.querySelector('input[type=checkbox]');
+      if(cb && cb.checked !== activa) cb.checked = activa;
+      Array.from(siguiente.cells).slice(2).forEach(function(td){
+        if(!activa){
+          td.style.textDecoration = 'line-through';
+          td.style.color = '#9ca3af';
+        } else {
+          td.style.textDecoration = '';
+          td.style.color = '';
+        }
+      });
+      return;
+    }
+    
+    // Crear fila nueva
+    const nuevoTR = document.createElement('tr');
+    nuevoTR.dataset.v83 = '1';
+    
+    const checked = activa ? 'checked' : '';
+    const styleTachado = activa ? '' : 'text-decoration:line-through;color:#9ca3af';
+    const nCeldas = tr.cells.length;
+    const precioFmt = window.v83_fmtCLP(window.V83_CHAPA_PRECIO);
+    
+    const tdNombre = '<td style="display:flex;align-items:center;gap:8px"><input type="checkbox" ' + checked + ' onchange="v84_toggleChapa(this.checked)" style="cursor:pointer;width:16px;height:16px"><span>' + window.V83_CHAPA_NOMBRE + '</span></td>';
+    
+    if(nCeldas >= 5){
+      nuevoTR.innerHTML = tdNombre +
+        '<td style="text-align:center">1</td>' +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>' +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>' +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>';
+    } else if(nCeldas === 4){
+      nuevoTR.innerHTML = tdNombre +
+        '<td style="text-align:center">1</td>' +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>' +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>';
+    } else if(nCeldas === 3){
+      nuevoTR.innerHTML = tdNombre +
+        '<td style="text-align:center">1</td>' +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>';
+    } else {
+      nuevoTR.innerHTML = tdNombre +
+        '<td style="text-align:right;' + styleTachado + '">' + precioFmt + '</td>';
+    }
+    
+    if(tr.nextSibling){
+      tbody.insertBefore(nuevoTR, tr.nextSibling);
+    } else {
+      tbody.appendChild(nuevoTR);
+    }
+  });
+};
+
+// Helper: obtener precio a sumar (0 si está desmarcado)
+window.v84_precioChapa = function(){
+  return window.v84_chapaActiva() ? window.V83_CHAPA_PRECIO : 0;
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
