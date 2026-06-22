@@ -12961,6 +12961,137 @@ setTimeout(function(){
 }, 5000);
 
 console.log('✅ V80 activo - borrado destructivo definitivo');
+  // ═══════════════════════════════════════════════════════════
+// ═══ V81: Paso 12 "Cliente eliminado" sin contar en % ════
+// ═══════════════════════════════════════════════════════════
+
+// Agregar el paso 12 al array global
+window.PASOS_V81 = [
+  {g:'Contacto',     emoji:'💬', text:'Prospecto creado'},
+  {g:'Reunión',      emoji:'🤝', text:'Reunión'},
+  {g:'Datos',        emoji:'📧', text:'Correo solicitud de datos enviado'},
+  {g:'Datos',        emoji:'📂', text:'Correo solicitud de datos recibido'},
+  {g:'Contrato Adm.',emoji:'📄', text:'Contrato de administración enviado'},
+  {g:'Contrato Amob.',emoji:'📝', text:'Contrato de amoblado firmado'},
+  {g:'Llaves',       emoji:'🔑', text:'Llaves recibidas'},
+  {g:'Amoblado',     emoji:'🔨', text:'Amoblado en proceso'},
+  {g:'Fotografía',   emoji:'📷', text:'Sesión fotográfica realizada'},
+  {g:'Fotografía',   emoji:'🎨', text:'Fotos editadas y listas'},
+  {g:'Bienvenida',   emoji:'🎉', text:'Bienvenida propietario'},
+  {g:'Eliminado',    emoji:'🚪', text:'Cliente eliminado', noContar:true}
+];
+
+// Reemplazar referencias
+window.FLOW_STEPS_FORCE = window.PASOS_V81;
+window.PASOS_V49 = window.PASOS_V81;
+try { FLOW_STEPS = window.PASOS_V81; } catch(e){}
+window.FLOW_STEPS = window.PASOS_V81;
+
+// Mapeo paso → stage (paso 11 = cliente_eliminado)
+window.MAPEO_PASO_A_STAGE = {
+  0:'prospecto',
+  1:'reunion_cursada',
+  2:'correo_datos',
+  3:'correo_datos',
+  4:'contrato_enviado',
+  5:'amob_contrato_firmado',
+  6:'amob_proceso',
+  7:'amob_proceso',
+  8:'foto_tomada',
+  9:'foto_editada',
+  10:'cliente_activo',
+  11:'cliente_eliminado'  // ← NUEVO
+};
+
+// Calcular % excluyendo los pasos noContar
+window.calcularProgresoV81 = function(checks){
+  if(!Array.isArray(checks)) return 0;
+  const pasos = window.PASOS_V81;
+  let totalContable = 0;
+  let marcadosContables = 0;
+  pasos.forEach(function(p, i){
+    if(!p.noContar){
+      totalContable++;
+      if(checks[i]) marcadosContables++;
+    }
+  });
+  return totalContable > 0 ? Math.round(marcadosContables / totalContable * 100) : 0;
+};
+
+// Patch del interceptor de renderModal (V46) para usar el nuevo cálculo
+(function(){
+  if(typeof renderModal !== 'function') return;
+  const __orig = renderModal;
+  window.renderModal = function(){
+    __orig();
+    setTimeout(function(){
+      try {
+        const tflow = document.getElementById('tflow');
+        if(!tflow) return;
+        const l = leads.find(function(x){ return x.id === selectedId; });
+        if(!l) return;
+        // Asegurar checks de 12
+        if(!l.checks || l.checks.length < 12){
+          const viejos = l.checks || [];
+          const nuevos = new Array(12).fill(false);
+          for(let i = 0; i < Math.min(viejos.length, 11); i++) nuevos[i] = viejos[i];
+          l.checks = nuevos;
+        }
+        const pasos = window.PASOS_V81;
+        const p = window.calcularProgresoV81(l.checks);
+        const pColor = typeof pctColor==='function' ? pctColor(p) : (p===100?'#16a34a':'#7c3aed');
+        let html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:10px 12px;background:' + (p===100?'var(--green-l)':'var(--bg)') + ';border-radius:var(--rsm);border:2px solid ' + (p===100?'rgba(22,163,74,.25)':'var(--border)') + '"><div><div class="N" style="font-size:13px;font-weight:900;color:' + (p===100?'var(--green-d)':'var(--text)') + '">' + (p===100?'🎉 ¡Todo listo!':'Progreso') + '</div><div style="font-size:11px;color:var(--text2);margin-top:1px">' + l.checks.filter(function(v,i){return v && !pasos[i].noContar}).length + ' de 11 pasos</div></div><div class="N" style="font-size:24px;font-weight:900;color:' + pColor + '">' + p + '%</div></div><div class="pbar" style="height:7px;margin-bottom:14px"><div class="pbar-f" style="width:' + p + '%;background:' + pColor + '"></div></div>';
+        let lastG = '';
+        pasos.forEach(function(step, i){
+          if(step.g !== lastG){
+            lastG = step.g;
+            html += '<div class="fs-group-head"' + (step.noContar?' style="color:#dc2626"':'') + '>' + step.g + '</div>';
+          }
+          const colorPaso = step.noContar ? 'color:#dc2626;border:1px dashed rgba(220,38,38,.3);background:rgba(254,242,242,.6);' : '';
+          html += '<div class="flow-step' + (l.checks[i]?' done':'') + '" style="' + colorPaso + '">' +
+            '<input type="checkbox" ' + (l.checks[i]?'checked':'') + ' onchange="toggleCheck(' + l.id + ',' + i + ',this.checked)" onclick="event.stopPropagation()">' +
+            '<span class="fs-num">' + (i+1) + '</span>' +
+            '<span class="fs-em">' + step.emoji + '</span>' +
+            '<div style="flex:1"><div class="fs-label">' + step.text + (step.noContar?' <span style="font-size:9px;color:#dc2626;background:#fee2e2;padding:1px 6px;border-radius:8px;font-weight:800">No suma al %</span>':'') + '</div></div>' +
+          '</div>';
+        });
+        tflow.innerHTML = html;
+      } catch(e){ console.warn('V81 pasos:', e); }
+    }, 280);
+  };
+})();
+
+// Patch del pipeline para agregar categoría "Eliminados"
+window.actualizarStageV51 = function(l){
+  if(!l) return;
+  let idx = 0;
+  if(typeof l.etapa === 'string' && l.etapa.indexOf('paso_') === 0){
+    idx = parseInt(l.etapa.replace('paso_','')) || 0;
+  } else if(l.checks && l.checks.length){
+    let last = -1;
+    l.checks.forEach(function(v,i){ if(v) last = i; });
+    if(last >= 0) idx = last;
+  }
+  const newStage = window.MAPEO_PASO_A_STAGE[idx];
+  if(newStage) l.stage = newStage;
+};
+
+// Sincronizar al cargar: si tiene paso 11 marcado, stage = cliente_eliminado
+setTimeout(function(){
+  if(!leads || !leads.length) return;
+  let cambios = 0;
+  leads.forEach(function(l){
+    if(l.checks && l.checks.length >= 12 && l.checks[11] === true && l.stage !== 'cliente_eliminado'){
+      l.stage = 'cliente_eliminado';
+      l.etapa = 'paso_11';
+      cambios++;
+    }
+  });
+  if(cambios > 0){
+    console.log('V81: ' + cambios + ' leads marcados como cliente_eliminado');
+    if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+  }
+}, 5000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
