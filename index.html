@@ -12585,6 +12585,129 @@ if(typeof window.toggleCtaPlegarV55 !== 'function'){
     if(arr) arr.textContent = oculto ? '▼' : '▶';
   };
 } 
+  // ═══════════════════════════════════════════════════════════
+// ═══ V79: Protección total de la edición ═════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.V79_EDITANDO = false;
+window.V79_LAST_KEYSTROKE = 0;
+
+window.v79_estoyEditando = function(){
+  // 1) Focus activo en un campo editable
+  const act = document.activeElement;
+  if(act && (act.tagName === 'INPUT' || act.tagName === 'TEXTAREA' || act.tagName === 'SELECT')){
+    return true;
+  }
+  // 2) Marca explícita
+  if(window.V79_EDITANDO) return true;
+  // 3) Keystroke reciente (< 1.5s)
+  if(Date.now() - window.V79_LAST_KEYSTROKE < 1500) return true;
+  return false;
+};
+
+// Capturar inputs
+document.addEventListener('input', function(e){
+  if(!e.target) return;
+  const tag = e.target.tagName;
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+    window.V79_EDITANDO = true;
+    window.V79_LAST_KEYSTROKE = Date.now();
+  }
+}, true);
+
+document.addEventListener('focusin', function(e){
+  if(!e.target) return;
+  const tag = e.target.tagName;
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+    window.V79_EDITANDO = true;
+  }
+}, true);
+
+document.addEventListener('focusout', function(e){
+  if(!e.target) return;
+  const tag = e.target.tagName;
+  if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'){
+    setTimeout(function(){ window.V79_EDITANDO = false; }, 800);
+  }
+}, true);
+
+// Wrap genérico: si una función toca el DOM y estoy editando, no hacerlo
+window.v79_wrapSeguro = function(fn){
+  if(typeof fn !== 'function') return fn;
+  return function(){
+    if(window.v79_estoyEditando()) return;
+    return fn.apply(this, arguments);
+  };
+};
+
+// Wrappear funciones que tocan el DOM
+[
+  'v52_quitarDocumentos',
+  'v53_anidarAdicionales',
+  'v54_quitarAdicionalesSidebar',
+  'v71_limpiarDuplicados',
+  'v70_intentarInyectar',
+  'v69_inyectarTodo',
+  'inyectarCuentasV67',
+  'inyectarContratosV67',
+  'inyectarPagosV67',
+  'inyectarNotasV67',
+  'inyectarBotonesEliminarV68',
+  'v48_inyectarFormularios'
+].forEach(function(nombre){
+  if(typeof window[nombre] === 'function'){
+    const orig = window[nombre];
+    window[nombre] = function(){
+      if(window.v79_estoyEditando()){
+        // Reagendar para más tarde
+        setTimeout(function(){
+          if(!window.v79_estoyEditando()) orig.apply(window, arguments);
+        }.bind(this), 2000);
+        return;
+      }
+      return orig.apply(this, arguments);
+    };
+  }
+});
+
+// Asegurar que cada INPUT/TEXTAREA del perfil tenga onblur que dispare save
+document.addEventListener('blur', function(e){
+  if(!e.target) return;
+  const tag = e.target.tagName;
+  if(tag === 'INPUT' || tag === 'TEXTAREA'){
+    // Disparar onchange si no se disparó
+    if(e.target.dataset && e.target.dataset.v79_changed){
+      delete e.target.dataset.v79_changed;
+      // Force save (onchange ya se debió ejecutar, pero por si acaso)
+      if(typeof saveData === 'function') saveData();
+    }
+  }
+}, true);
+
+document.addEventListener('input', function(e){
+  if(e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')){
+    e.target.dataset.v79_changed = '1';
+  }
+}, true);
+
+// Visual: pequeño indicador "✏️ Editando..." cuando hay actividad
+window.v79_actualizarIndicadorEdicion = function(){
+  let el = document.getElementById('v79-indicator-editando');
+  if(window.v79_estoyEditando()){
+    if(!el){
+      el = document.createElement('div');
+      el.id = 'v79-indicator-editando';
+      el.style.cssText = 'position:fixed;bottom:60px;right:18px;background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:6px 12px;border-radius:18px;font-size:10px;font-weight:700;font-family:\'Nunito\',sans-serif;z-index:9000;box-shadow:0 2px 8px rgba(0,0,0,.05);pointer-events:none';
+      el.textContent = '✏️ Editando — auto-guarda en breve';
+      document.body.appendChild(el);
+    }
+  } else {
+    if(el) el.remove();
+  }
+};
+setInterval(window.v79_actualizarIndicadorEdicion, 400);
+
+console.log('✅ V79 activo - inputs protegidos');
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
