@@ -13448,6 +13448,58 @@ setInterval(function(){
     }
   });
 }, 1000);
+  // ═══ V86: Agregar checkbox a filas que falten ═══
+
+setInterval(function(){
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  
+  document.querySelectorAll('tr[data-v83="1"]').forEach(function(tr){
+    const primeraTd = tr.cells[0];
+    if(!primeraTd) return;
+    
+    // Si ya tiene checkbox, asegurar que el nombre sea correcto
+    const cb = primeraTd.querySelector('input[type=checkbox]');
+    if(cb){
+      // Sincronizar estado con sessionStorage
+      const activa = window.v84_chapaActiva ? window.v84_chapaActiva() : true;
+      if(cb.checked !== activa) cb.checked = activa;
+      // Asegurar texto
+      const span = primeraTd.querySelector('span');
+      if(span && span.textContent !== window.V83_CHAPA_NOMBRE){
+        span.textContent = window.V83_CHAPA_NOMBRE;
+      }
+      // Aplicar estilo tachado si está desmarcado
+      Array.from(tr.cells).slice(2).forEach(function(td){
+        if(!activa){
+          td.style.textDecoration = 'line-through';
+          td.style.color = '#9ca3af';
+        } else {
+          td.style.textDecoration = '';
+          td.style.color = '';
+        }
+      });
+      return;
+    }
+    
+    // No tiene checkbox → agregárselo
+    const nombreActual = primeraTd.textContent.trim();
+    const activa = window.v84_chapaActiva ? window.v84_chapaActiva() : true;
+    const checked = activa ? 'checked' : '';
+    
+    primeraTd.innerHTML = '<div style="display:flex;align-items:center;gap:8px">' +
+      '<input type="checkbox" ' + checked + ' onchange="v84_toggleChapa(this.checked)" style="cursor:pointer;width:16px;height:16px">' +
+      '<span>' + (window.V83_CHAPA_NOMBRE || nombreActual) + '</span>' +
+    '</div>';
+    
+    // Aplicar tachado
+    Array.from(tr.cells).slice(2).forEach(function(td){
+      if(!activa){
+        td.style.textDecoration = 'line-through';
+        td.style.color = '#9ca3af';
+      }
+    });
+  });
+}, 800);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
