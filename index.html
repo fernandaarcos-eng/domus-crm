@@ -13225,6 +13225,92 @@ setInterval(function(){
 
 setTimeout(window.v82_inyectarEliminados, 1500);
 setTimeout(window.v82_inyectarEliminados, 4000);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V83: Chapa electrónica junto al flete ════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.V83_CHAPA_PRECIO = 149990;
+window.V83_CHAPA_NOMBRE = 'CHAPA ELECTRÓNICA';
+
+window.v83_fmtCLP = function(n){
+  return '$' + Number(n||0).toLocaleString('es-CL');
+};
+
+window.v83_inyectarChapaJuntoFlete = function(){
+  // No interrumpir si está editando
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  
+  // Buscar todas las TDs con texto "FLETE" en el documento
+  const todos = document.querySelectorAll('td');
+  Array.from(todos).forEach(function(td){
+    if(td.textContent.trim() !== 'FLETE') return;
+    const tr = td.closest('tr');
+    if(!tr) return;
+    const tbody = tr.parentElement;
+    if(!tbody) return;
+    
+    // Verificar si ya hay una fila de chapa después
+    let siguiente = tr.nextElementSibling;
+    let yaExiste = false;
+    while(siguiente){
+      const primeraTd = siguiente.querySelector('td');
+      if(primeraTd && primeraTd.textContent.trim().toUpperCase().indexOf('CHAPA') > -1){
+        yaExiste = true;
+        break;
+      }
+      // Solo revisar la fila inmediatamente después
+      break;
+    }
+    if(yaExiste) return;
+    
+    // Crear la nueva fila clonando estructura de la TR de flete
+    const nuevoTR = document.createElement('tr');
+    nuevoTR.className = tr.className;
+    nuevoTR.dataset.v83 = '1';
+    
+    // Calcular columnas según las del flete
+    const nCeldas = tr.cells.length;
+    
+    if(nCeldas >= 5){
+      // Cotizador interno: NOMBRE | CANT | PRECIO_INT | PRECIO_VENTA | CON_DESCUENTO
+      nuevoTR.innerHTML = 
+        '<td>' + window.V83_CHAPA_NOMBRE + '</td>' +
+        '<td style="text-align:center">1</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>';
+    } else if(nCeldas === 4){
+      // Vista cliente sin la columna interna: NOMBRE | CANT | PRECIO_VENTA | CON_DESCUENTO
+      nuevoTR.innerHTML = 
+        '<td>' + window.V83_CHAPA_NOMBRE + '</td>' +
+        '<td style="text-align:center">1</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>';
+    } else if(nCeldas === 3){
+      nuevoTR.innerHTML = 
+        '<td>' + window.V83_CHAPA_NOMBRE + '</td>' +
+        '<td style="text-align:center">1</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>';
+    } else {
+      // Default 2 columnas
+      nuevoTR.innerHTML = 
+        '<td>' + window.V83_CHAPA_NOMBRE + '</td>' +
+        '<td style="text-align:right">' + window.v83_fmtCLP(window.V83_CHAPA_PRECIO) + '</td>';
+    }
+    
+    // Insertar después del tr de flete
+    if(tr.nextSibling){
+      tbody.insertBefore(nuevoTR, tr.nextSibling);
+    } else {
+      tbody.appendChild(nuevoTR);
+    }
+  });
+};
+
+// Aplicar periódicamente
+setInterval(window.v83_inyectarChapaJuntoFlete, 1500);
+setTimeout(window.v83_inyectarChapaJuntoFlete, 800);
+setTimeout(window.v83_inyectarChapaJuntoFlete, 2000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
