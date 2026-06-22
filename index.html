@@ -13531,6 +13531,32 @@ window.v83_inyectarChapaJuntoFlete = function(){
   // Si no, ejecutar el original
   if(typeof __v83_orig_safe === 'function') return __v83_orig_safe.apply(this, arguments);
 };
+    // ═══ V88: Quitar Cerradura Electrónica ═══
+
+// Desactivar todas las funciones de inyección
+window.v83_inyectarChapaJuntoFlete = function(){};
+window.v84_toggleChapa = function(){};
+window.v87_dedupCerradura = function(){};
+window.inyectarChapaJuntoFlete = function(){};
+
+// Limpiar sessionStorage
+sessionStorage.removeItem('v84_chapa_activa');
+
+// setInterval permanente que elimina cualquier fila de cerradura que aparezca
+setInterval(function(){
+  document.querySelectorAll('tr[data-v83="1"]').forEach(function(tr){ tr.remove(); });
+  // También limpiar por texto en caso de filas legacy
+  document.querySelectorAll('tr').forEach(function(tr){
+    const primeraTd = tr.cells && tr.cells[0];
+    if(!primeraTd) return;
+    const txt = primeraTd.textContent.trim().toUpperCase();
+    if(txt.indexOf('CERRADURA ELECTRÓNICA') > -1 || txt.indexOf('CERRADURA ELECTRONICA') > -1){
+      if(txt.length < 60){ // Evitar borrar filas con largos textos
+        tr.remove();
+      }
+    }
+  });
+}, 500);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
