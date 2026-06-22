@@ -13092,6 +13092,139 @@ setTimeout(function(){
     if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
   }
 }, 5000);
+  // ═══ V82: Categoría Eliminados en el Pipeline ═══
+
+window.v82_inyectarEliminados = function(){
+  // Solo si estamos en la vista del pipeline
+  if(typeof currentView !== 'undefined' && currentView !== 'pipeline') return;
+  
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  
+  // Buscar el div.N "Activo"
+  const activoN = Array.from(mc.querySelectorAll('.N')).filter(function(n){
+    return n.textContent.trim() === 'Activo';
+  })[0];
+  if(!activoN) return;
+  
+  // Si ya existe la sección "Eliminados", actualizar
+  let existente = Array.from(mc.querySelectorAll('.N')).filter(function(n){
+    return n.textContent.trim() === 'Eliminados';
+  })[0];
+  
+  // Contar leads eliminados
+  const eliminados = leads.filter(function(l){ return l.stage === 'cliente_eliminado'; });
+  
+  // Subir hasta encontrar el contenedor card de "Activo" (búsqueda hasta 6 niveles)
+  let cardActivo = activoN;
+  for(let i = 0; i < 6 && cardActivo; i++){
+    if(cardActivo.parentElement && cardActivo.parentElement.children.length === 1){
+      cardActivo = cardActivo.parentElement;
+    } else if(cardActivo.parentElement){
+      // Buscar nivel donde hay múltiples hermanos (típico de listas de categorías)
+      const padre = cardActivo.parentElement;
+      const hermanos = Array.from(padre.children);
+      if(hermanos.length >= 5 && hermanos.length <= 10){
+        // Probablemente este es el contenedor de las categorías
+        cardActivo = padre.children[hermanos.indexOf(cardActivo.closest('.sb-section, [onclick], div')) >= 0 ? hermanos.indexOf(cardActivo.closest('.sb-section, [onclick], div')) : 0];
+        break;
+      }
+      cardActivo = padre;
+    }
+  }
+  
+  // Si ya existe, solo actualizar contenido
+  if(existente){
+    const cardElim = existente.closest('div[style*="background"]') || existente.parentElement;
+    if(cardElim){
+      const contador = cardElim.querySelector('.v82-contador');
+      if(contador) contador.textContent = eliminados.length + ' clientes';
+    }
+    return;
+  }
+  
+  // Crear nueva card
+  const card = document.createElement('div');
+  card.className = 'sb-section v82-elim-card';
+  card.style.cssText = 'background:#fff;border:2px solid rgba(220,38,38,.2);border-radius:14px;padding:18px 20px;margin-bottom:12px;cursor:pointer;transition:all .2s';
+  
+  card.innerHTML = 
+    '<div style="display:flex;align-items:center;justify-content:space-between">' +
+      '<div style="display:flex;align-items:center;gap:14px">' +
+        '<div style="width:42px;height:42px;background:#fee2e2;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px">🚪</div>' +
+        '<div>' +
+          '<div class="N" style="font-size:16px;font-weight:900;color:#dc2626">Eliminados</div>' +
+          '<div style="font-size:12px;color:var(--text2);margin-top:2px">🚪 Cliente eliminado (' + eliminados.length + ')</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+        '<div class="v82-contador" style="background:#fee2e2;color:#dc2626;padding:6px 14px;border-radius:18px;font-size:13px;font-weight:800">' + eliminados.length + ' clientes</div>' +
+        '<span style="color:#dc2626;font-size:16px">▼</span>' +
+      '</div>' +
+    '</div>';
+  
+  // Click expandible
+  let expandido = false;
+  card.onclick = function(){
+    expandido = !expandido;
+    let lista = card.querySelector('.v82-lista');
+    if(!lista){
+      lista = document.createElement('div');
+      lista.className = 'v82-lista';
+      lista.style.cssText = 'margin-top:14px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px';
+      card.appendChild(lista);
+    }
+    if(expandido){
+      // Construir tarjetas de leads eliminados
+      let html = '';
+      if(eliminados.length === 0){
+        html = '<div style="grid-column:1/-1;text-align:center;color:var(--text2);font-size:12px;padding:12px">Sin clientes eliminados</div>';
+      } else {
+        eliminados.forEach(function(l){
+          html += '<div onclick="event.stopPropagation();showView(\'cliente-perfil\',null);window.perfilCurrentLeadId=' + l.id + ';renderClientePerfil(' + l.id + ')" style="background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;cursor:pointer">' +
+            '<div style="font-size:11px;font-weight:800;color:#1a1730;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (l.name || '—') + '</div>' +
+            '<div style="font-size:10px;color:var(--text2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (l.address || 'Sin dirección') + '</div>' +
+            '<div style="font-size:9px;color:#dc2626;margin-top:4px">🚪 Eliminado · ' + (l.mes_asignado || '—') + '</div>' +
+          '</div>';
+        });
+      }
+      lista.innerHTML = html;
+      lista.style.display = 'grid';
+      card.querySelector('span:last-of-type').textContent = '▲';
+    } else {
+      lista.style.display = 'none';
+      card.querySelector('span:last-of-type').textContent = '▼';
+    }
+  };
+  
+  // Insertar después de la card de Activo
+  let elementoActivo = activoN.closest('.sb-section');
+  if(!elementoActivo){
+    // Buscar el padre que sea hermano directo del padre de las cards
+    elementoActivo = activoN;
+    for(let i = 0; i < 4; i++){
+      if(elementoActivo.parentElement && elementoActivo.parentElement.children.length > 4){
+        break;
+      }
+      elementoActivo = elementoActivo.parentElement;
+    }
+  }
+  
+  if(elementoActivo && elementoActivo.parentElement){
+    elementoActivo.parentElement.insertBefore(card, elementoActivo.nextSibling);
+  } else {
+    mc.appendChild(card);
+  }
+};
+
+// Ejecutar cada 1.5s para mantener la sección al día
+setInterval(function(){
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  window.v82_inyectarEliminados();
+}, 1500);
+
+setTimeout(window.v82_inyectarEliminados, 1500);
+setTimeout(window.v82_inyectarEliminados, 4000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
