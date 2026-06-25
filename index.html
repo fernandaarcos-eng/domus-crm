@@ -13691,6 +13691,115 @@ window.renderCotizacionesV66 = function(currentId){
     mc.appendChild(sec);
   } catch(e){ console.warn('V89 cotiz:', e); }
 };
+    // ═══ V90: Cotización con resumen legible ═══
+
+window.abrirCotizacionV89 = function(leadId, cotizIdx){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !Array.isArray(l.cotizaciones)) return;
+  const c = l.cotizaciones[parseInt(cotizIdx)];
+  if(!c) return;
+  
+  const prev = document.getElementById('v89-modal');
+  if(prev) prev.remove();
+  
+  const config = c.config || {};
+  const fmt = window.fmtCLP_V89 || function(n){return '$'+Number(n||0).toLocaleString('es-CL')};
+  
+  // === Construir resumen legible ===
+  function badge(texto, color){
+    return '<span style="font-size:10px;font-weight:800;background:' + color + ';color:#fff;padding:3px 9px;border-radius:10px;display:inline-block;margin:2px">' + texto + '</span>';
+  }
+  function badgeOff(texto){
+    return '<span style="font-size:10px;font-weight:700;background:#f3f4f6;color:#9ca3af;padding:3px 9px;border-radius:10px;display:inline-block;margin:2px;text-decoration:line-through">' + texto + '</span>';
+  }
+  
+  // Lista de items desmarcados (vienen de itemsDesmarcados)
+  let itemsDesmarcadosHtml = '';
+  if(config.itemsDesmarcados && typeof config.itemsDesmarcados === 'object'){
+    const desmarcados = [];
+    Object.keys(config.itemsDesmarcados).forEach(function(tipo){
+      const arr = config.itemsDesmarcados[tipo];
+      if(Array.isArray(arr) && arr.length > 0){
+        arr.forEach(function(item){ desmarcados.push(item); });
+      }
+    });
+    if(desmarcados.length > 0){
+      itemsDesmarcadosHtml = '<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;color:#dc2626;text-transform:uppercase;margin-bottom:5px">❌ Items quitados (' + desmarcados.length + ')</div><div>' + desmarcados.map(function(i){return badgeOff(i);}).join('') + '</div></div>';
+    }
+  }
+  
+  // Adicionales desmarcados (índices del array global)
+  let adicDesmarcadosHtml = '';
+  const adicTodos = window.AMOBLADOS_ADICIONALES || [];
+  const adicDesmIdxs = Array.isArray(config.adicionalesDesmarcados) ? config.adicionalesDesmarcados : [];
+  if(adicTodos.length > 0){
+    const activos = [];
+    const desactivos = [];
+    adicTodos.forEach(function(adic, idx){
+      const nombre = Array.isArray(adic) ? adic[0] : (adic.nombre || 'Adicional ' + (idx+1));
+      if(adicDesmIdxs.indexOf(idx) !== -1) desactivos.push(nombre);
+      else activos.push(nombre);
+    });
+    if(config.incluirAdicionales){
+      adicDesmarcadosHtml = '<div style="margin-top:10px"><div style="font-size:10px;font-weight:800;color:#7c3aed;text-transform:uppercase;margin-bottom:5px">📦 Adicionales activos (' + activos.length + ')</div><div>' + activos.map(function(n){return badge(n, '#7c3aed');}).join('') + '</div>' + (desactivos.length>0 ? '<div style="margin-top:6px"><div style="font-size:10px;color:#9ca3af;margin-bottom:3px">Quitados:</div><div>' + desactivos.map(function(n){return badgeOff(n);}).join('') + '</div></div>' : '') + '</div>';
+    } else {
+      adicDesmarcadosHtml = '<div style="margin-top:10px;color:#9ca3af;font-size:11px">Sin adicionales en esta cotización</div>';
+    }
+  }
+  
+  // Configuración general en badges legibles
+  let configHtml = '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:5px">';
+  configHtml += badge((config.incluirAmoblado?'✅':'❌') + ' Amoblado', config.incluirAmoblado?'#16a34a':'#9ca3af');
+  configHtml += badge((config.incluirAire?'✅':'❌') + ' Aire acondicionado', config.incluirAire?'#16a34a':'#9ca3af');
+  configHtml += badge((config.incluirAdicionales?'✅':'❌') + ' Adicionales', config.incluirAdicionales?'#16a34a':'#9ca3af');
+  configHtml += badge((config.conIva?'✅':'❌') + ' Con IVA', config.conIva?'#16a34a':'#9ca3af');
+  if(config.descuentoNivel !== undefined){
+    configHtml += badge('💰 Descuento nivel ' + config.descuentoNivel, '#f59e0b');
+  }
+  configHtml += '</div>';
+  
+  const modal = document.createElement('div');
+  modal.id = 'v89-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(20,15,40,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);font-family:\'Nunito Sans\',sans-serif';
+  
+  modal.innerHTML = 
+    '<div style="background:#fff;border-radius:14px;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.25)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:2px solid #f3f4f6;background:linear-gradient(135deg,#f5f3ff,#ede9fe)">' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:900;color:#5b21b6">📋 ' + (c.tipologiaLabel || c.tipologia || 'Cotización') + ' · ' + (c.estilo || '—') + '</div>' +
+          '<div style="font-size:11px;color:#6b7280;margin-top:3px">📅 ' + (c.fechaStr || (c.fecha?new Date(c.fecha).toLocaleDateString('es-CL'):'—')) + (c.usuarioCreador?' · ✏️ '+c.usuarioCreador:'') + '</div>' +
+        '</div>' +
+        '<button onclick="document.getElementById(\'v89-modal\').remove()" style="background:none;border:1px solid #d1d5db;color:#374151;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✕ Cerrar</button>' +
+      '</div>' +
+      '<div style="padding:18px 22px">' +
+        '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px">' +
+          (c.paraNombre ? '<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;border-left:3px solid #7c3aed"><div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase">👤 Para</div><div style="font-size:12px;font-weight:700;color:#1f2937;margin-top:3px">' + c.paraNombre + '</div></div>' : '') +
+          (c.paraEmail ? '<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;border-left:3px solid #2563eb"><div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase">📧 Email</div><div style="font-size:12px;font-weight:700;color:#1f2937;margin-top:3px">' + c.paraEmail + '</div></div>' : '') +
+        '</div>' +
+        '<div style="margin-bottom:18px;background:#fafafa;border-radius:10px;padding:14px 16px;border:1px solid var(--border)">' +
+          '<div style="font-size:11px;font-weight:900;color:#6b7280;text-transform:uppercase;margin-bottom:8px">⚙️ Configuración</div>' +
+          configHtml +
+          itemsDesmarcadosHtml +
+          adicDesmarcadosHtml +
+        '</div>' +
+        '<div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);padding:14px 18px;border-radius:10px;border:2px solid rgba(124,58,237,.15)">' +
+          (c.subtotal ? '<div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:4px"><span>Subtotal</span><span>' + fmt(c.subtotal) + '</span></div>' : '') +
+          (c.ahorro && c.ahorro > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;color:#16a34a;margin-bottom:4px"><span>💰 Ahorro</span><span>-' + fmt(c.ahorro) + '</span></div>' : '') +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px"><span style="font-size:13px;font-weight:900;color:#5b21b6">TOTAL</span><span style="font-size:22px;font-weight:900;color:#7c3aed">' + fmt(c.total) + '</span></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">' +
+          '<button onclick="if(confirm(\'¿Eliminar esta cotización?\')){var l=leads.find(function(x){return x.id===' + leadId + '});if(l&&Array.isArray(l.cotizaciones)){l.cotizaciones.splice(' + cotizIdx + ',1);if(typeof window.__V60_origSave===\'function\')window.__V60_origSave();else saveData();document.getElementById(\'v89-modal\').remove();if(window.renderCotizacionesV66)window.renderCotizacionesV66(' + leadId + ');}}" style="background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(220,38,38,.3);padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Eliminar cotización</button>' +
+          '<button onclick="document.getElementById(\'v89-modal\').remove()" style="background:#7c3aed;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Cerrar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  
+  modal.addEventListener('click', function(e){
+    if(e.target === modal) modal.remove();
+  });
+  
+  document.body.appendChild(modal);
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
