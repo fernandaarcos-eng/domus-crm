@@ -14171,6 +14171,101 @@ window.v93_crearBoton = function(){
 setTimeout(window.v93_crearBoton, 1500);
 setTimeout(window.v93_crearBoton, 5000);
 setInterval(window.v93_crearBoton, 3000);
+  // ═══ V94: Panel de diagnóstico ═══
+
+window.mostrarDiagnosticoV94 = function(){
+  const prev = document.getElementById('v94-modal');
+  if(prev) prev.remove();
+  
+  // Recopilar info
+  const usuario = (window.usuarioActual && window.usuarioActual.email) || 
+                  sessionStorage.getItem('usuario_email') || 
+                  localStorage.getItem('usuario_email') || 
+                  '— no detectado —';
+  const totalLeads = leads ? leads.length : 0;
+  const conNotasSeguimiento = leads ? leads.filter(function(l){
+    return l.notas_seguimiento && (
+      (l.notas_seguimiento.actual && l.notas_seguimiento.actual.length > 0) || 
+      (Array.isArray(l.notas_seguimiento.historial) && l.notas_seguimiento.historial.length > 0)
+    );
+  }).length : 0;
+  
+  // Versiones aplicadas
+  const versiones = {
+    'V57 (IndexedDB)': typeof window.v57_saveFile === 'function',
+    'V60 (Save debouncing)': typeof window.__V60_origSave === 'function',
+    'V64 (Botón guardar)': typeof window.guardarAhoraV64 === 'function',
+    'V67 (Render maestro)': typeof window.renderMaestroV67 === 'function',
+    'V73 (Drive)': typeof window.v73_extraerDriveId === 'function',
+    'V92 (Notas seguimiento)': typeof window.getNotasSeguimientoV92 === 'function',
+    'V93 (Recargar)': typeof window.recargarDesdeSupabase === 'function'
+  };
+  
+  const totalSeg = totalLeads > 0 ? Math.round(JSON.stringify(leads).length / 1024) : 0;
+  
+  // Buscar el lead 113 (que tiene la nota)
+  const lead113 = leads ? leads.find(function(l){ return l.id === 113; }) : null;
+  const nota113 = lead113 && lead113.notas_seguimiento && Array.isArray(lead113.notas_seguimiento.historial) ? lead113.notas_seguimiento.historial.length : 0;
+  
+  const modal = document.createElement('div');
+  modal.id = 'v94-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(20,15,40,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);font-family:\'Nunito Sans\',sans-serif';
+  
+  const versionesHtml = Object.entries(versiones).map(function(kv){
+    return '<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px"><span>' + kv[0] + '</span><span style="font-weight:800;color:' + (kv[1]?'#16a34a':'#dc2626') + '">' + (kv[1]?'✓ Activo':'✗ FALTA') + '</span></div>';
+  }).join('');
+  
+  modal.innerHTML = 
+    '<div style="background:#fff;border-radius:12px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.25)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:2px solid #f3f4f6;background:linear-gradient(135deg,#ddd6fe,#e9d5ff)">' +
+        '<div style="font-size:14px;font-weight:900;color:#5b21b6">🔍 Diagnóstico del CRM</div>' +
+        '<button onclick="document.getElementById(\'v94-modal\').remove()" style="background:none;border:1px solid #d1d5db;color:#374151;padding:5px 11px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">✕</button>' +
+      '</div>' +
+      '<div style="padding:18px 22px">' +
+        '<div style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid #2563eb">' +
+          '<div style="font-size:11px;font-weight:800;color:#1e40af;margin-bottom:4px">👤 USUARIO ACTUAL</div>' +
+          '<div style="font-size:12px;color:#1f2937;font-family:monospace">' + usuario + '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid #16a34a">' +
+          '<div style="font-size:11px;font-weight:800;color:#15803d;margin-bottom:4px">📊 DATOS CARGADOS</div>' +
+          '<div style="font-size:11px;color:#374151;line-height:1.7">' +
+            '<div>Total leads en memoria: <b>' + totalLeads + '</b></div>' +
+            '<div>Tamaño aproximado: <b>' + totalSeg + ' KB</b></div>' +
+            '<div>Leads con notas de seguimiento: <b>' + conNotasSeguimiento + '</b></div>' +
+            (lead113 ? '<div>Lead 113 (Alex Carrasco) tiene <b>' + nota113 + '</b> nota(s) en historial</div>' : '<div style="color:#dc2626"><b>⚠️ Lead 113 NO está en tu CRM</b> (no se sincronizó desde Supabase)</div>') +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:16px;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid #7c3aed">' +
+          '<div style="font-size:11px;font-weight:800;color:#5b21b6;margin-bottom:8px">⚙️ VERSIONES APLICADAS</div>' +
+          versionesHtml +
+        '</div>' +
+        '<div style="padding:12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px">' +
+          '<div style="font-size:11px;font-weight:800;color:#92400e;margin-bottom:6px">📋 INSTRUCCIONES</div>' +
+          '<div style="font-size:10px;color:#78350f;line-height:1.6">Toma una captura de este modal y envíala para diagnosticar el problema. Si dice "⚠️ FALTA" en alguna versión, esa funcionalidad no está cargada en tu navegador.</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  
+  modal.addEventListener('click', function(e){
+    if(e.target === modal) modal.remove();
+  });
+  
+  document.body.appendChild(modal);
+};
+
+window.v94_crearBoton = function(){
+  if(document.getElementById('v94-btn-diag')) return;
+  const btn = document.createElement('button');
+  btn.id = 'v94-btn-diag';
+  btn.onclick = window.mostrarDiagnosticoV94;
+  btn.style.cssText = 'position:fixed;bottom:126px;right:18px;background:#a855f7;color:#fff;border:none;padding:8px 14px;border-radius:20px;font-size:11px;font-weight:800;font-family:\'Nunito\',sans-serif;cursor:pointer;z-index:9300;box-shadow:0 4px 12px rgba(168,85,247,.25)';
+  btn.innerHTML = '🔍 Diagnóstico';
+  btn.title = 'Información de estado del CRM';
+  document.body.appendChild(btn);
+};
+
+setTimeout(window.v94_crearBoton, 1500);
+setInterval(window.v94_crearBoton, 3000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
