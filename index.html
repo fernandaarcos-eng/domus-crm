@@ -14100,6 +14100,77 @@ if(typeof __origInyectarV70 === 'function'){
     }, 600);
   };
 }
+  // ═══ V93: Botón Recargar desde Supabase ═══
+
+window.recargarDesdeSupabase = async function(){
+  const btn = document.getElementById('v93-btn-recargar');
+  if(btn){
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Recargando...';
+    btn.style.background = '#7c3aed';
+  }
+  try {
+    // Buscar la función original que carga desde Supabase
+    const candidatas = ['loadFromCloud', 'cargarDesdeCloud', 'cargarLeads', 'cargarDatos', 'fetchLeads', 'loadLeads'];
+    let cargado = false;
+    for(let i = 0; i < candidatas.length; i++){
+      if(typeof window[candidatas[i]] === 'function'){
+        try {
+          const r = window[candidatas[i]]();
+          if(r && typeof r.then === 'function') await r;
+          cargado = true;
+          break;
+        } catch(e){ console.warn('Probando ' + candidatas[i], e); }
+      }
+    }
+    
+    // Si no funcionó, recargar la página entera (Ctrl+Shift+R nativo)
+    if(!cargado){
+      if(confirm('Para asegurar datos actualizados, voy a recargar la página. ¿Continuar?')){
+        location.reload(true);
+      }
+      return;
+    }
+    
+    if(btn){
+      btn.style.background = '#16a34a';
+      btn.innerHTML = '✓ Datos actualizados';
+      setTimeout(function(){
+        if(btn){
+          btn.disabled = false;
+          btn.style.background = '#2563eb';
+          btn.innerHTML = '🔄 Recargar datos';
+        }
+      }, 2000);
+    }
+    if(typeof toast === 'function') toast('✅ Datos sincronizados desde Supabase');
+  } catch(e){
+    console.error('V93 recargar:', e);
+    if(btn){
+      btn.disabled = false;
+      btn.style.background = '#dc2626';
+      btn.innerHTML = '⚠️ Error - reintenta';
+    }
+    if(typeof toast === 'function') toast('⚠️ Error: ' + (e && e.message || e));
+  }
+};
+
+window.v93_crearBoton = function(){
+  if(document.getElementById('v93-btn-recargar')) return;
+  const btn = document.createElement('button');
+  btn.id = 'v93-btn-recargar';
+  btn.onclick = window.recargarDesdeSupabase;
+  btn.style.cssText = 'position:fixed;bottom:72px;right:18px;background:#2563eb;color:#fff;border:none;padding:10px 16px;border-radius:24px;font-size:11px;font-weight:800;font-family:\'Nunito\',sans-serif;cursor:pointer;z-index:9400;box-shadow:0 4px 12px rgba(37,99,235,.25);transition:all .2s';
+  btn.innerHTML = '🔄 Recargar datos';
+  btn.title = 'Trae los datos más recientes desde Supabase';
+  btn.onmouseover = function(){ btn.style.transform = 'translateY(-2px) scale(1.02)'; };
+  btn.onmouseout = function(){ btn.style.transform = 'translateY(0) scale(1)'; };
+  document.body.appendChild(btn);
+};
+
+setTimeout(window.v93_crearBoton, 1500);
+setTimeout(window.v93_crearBoton, 5000);
+setInterval(window.v93_crearBoton, 3000);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
