@@ -13557,6 +13557,140 @@ setInterval(function(){
     }
   });
 }, 500);
+  // ═══════════════════════════════════════════════════════════
+// ═══ V89: Abrir cotización con modal de detalles =════════
+// ═══════════════════════════════════════════════════════════
+
+window.fmtCLP_V89 = function(n){
+  return '$' + Number(n||0).toLocaleString('es-CL');
+};
+
+window.abrirCotizacionV89 = function(leadId, cotizIdx){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !Array.isArray(l.cotizaciones)) return;
+  const c = l.cotizaciones[parseInt(cotizIdx)];
+  if(!c) return;
+  
+  // Cerrar modal existente
+  const prev = document.getElementById('v89-modal');
+  if(prev) prev.remove();
+  
+  // Construir contenido
+  let itemsHtml = '';
+  const config = c.config || {};
+  
+  // Si config tiene items
+  if(Array.isArray(config.items) && config.items.length > 0){
+    itemsHtml = '<table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr style="background:#f3f4f6"><th style="text-align:left;padding:8px;border-bottom:2px solid #e5e7eb">Item</th><th style="text-align:center;padding:8px;border-bottom:2px solid #e5e7eb">Cant.</th><th style="text-align:right;padding:8px;border-bottom:2px solid #e5e7eb">Precio</th></tr></thead><tbody>';
+    config.items.forEach(function(it){
+      itemsHtml += '<tr><td style="padding:6px 8px;border-bottom:1px solid #f3f4f6">' + (it.nombre || it.name || it[0] || '') + '</td><td style="padding:6px 8px;text-align:center;border-bottom:1px solid #f3f4f6">' + (it.cantidad || it.cant || it[1] || 1) + '</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #f3f4f6">' + window.fmtCLP_V89(it.precio || it.total || it[2] || 0) + '</td></tr>';
+    });
+    itemsHtml += '</tbody></table>';
+  } else {
+    // Mostrar el config completo como JSON formateado
+    try {
+      itemsHtml = '<div style="font-size:11px"><strong>Configuración:</strong><pre style="background:#f9fafb;padding:10px;border-radius:6px;overflow-x:auto;font-size:10px">' + JSON.stringify(config, null, 2) + '</pre></div>';
+    } catch(e){ itemsHtml = '<div style="color:#9ca3af">Sin items detallados</div>'; }
+  }
+  
+  const modal = document.createElement('div');
+  modal.id = 'v89-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(20,15,40,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);font-family:\'Nunito Sans\',sans-serif';
+  
+  modal.innerHTML = 
+    '<div style="background:#fff;border-radius:14px;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.25)">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-bottom:2px solid #f3f4f6;background:linear-gradient(135deg,#f5f3ff,#ede9fe)">' +
+        '<div>' +
+          '<div style="font-size:13px;font-weight:900;color:#5b21b6">📋 ' + (c.tipologiaLabel || c.tipologia || 'Cotización') + ' · ' + (c.estilo || '—') + '</div>' +
+          '<div style="font-size:11px;color:#6b7280;margin-top:3px">📅 ' + (c.fechaStr || (c.fecha?new Date(c.fecha).toLocaleDateString('es-CL'):'—')) + (c.usuarioCreador?' · ✏️ '+c.usuarioCreador:'') + '</div>' +
+        '</div>' +
+        '<button onclick="document.getElementById(\'v89-modal\').remove()" style="background:none;border:1px solid #d1d5db;color:#374151;padding:6px 12px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">✕ Cerrar</button>' +
+      '</div>' +
+      '<div style="padding:18px 22px">' +
+        '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:18px">' +
+          (c.paraNombre ? '<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;border-left:3px solid #7c3aed"><div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase">👤 Para</div><div style="font-size:12px;font-weight:700;color:#1f2937;margin-top:3px">' + c.paraNombre + '</div></div>' : '') +
+          (c.paraEmail ? '<div style="background:#f9fafb;padding:10px 14px;border-radius:8px;border-left:3px solid #2563eb"><div style="font-size:9px;font-weight:800;color:#6b7280;text-transform:uppercase">📧 Email</div><div style="font-size:12px;font-weight:700;color:#1f2937;margin-top:3px">' + c.paraEmail + '</div></div>' : '') +
+        '</div>' +
+        '<div style="margin-bottom:18px"><div style="font-size:11px;font-weight:800;color:#6b7280;text-transform:uppercase;margin-bottom:8px">🪑 Items</div>' + itemsHtml + '</div>' +
+        '<div style="background:linear-gradient(135deg,#f5f3ff,#ede9fe);padding:14px 18px;border-radius:10px;border:2px solid rgba(124,58,237,.15)">' +
+          (c.subtotal ? '<div style="display:flex;justify-content:space-between;font-size:11px;color:#6b7280;margin-bottom:4px"><span>Subtotal</span><span>' + window.fmtCLP_V89(c.subtotal) + '</span></div>' : '') +
+          (c.ahorro && c.ahorro > 0 ? '<div style="display:flex;justify-content:space-between;font-size:11px;color:#16a34a;margin-bottom:4px"><span>💰 Ahorro</span><span>-' + window.fmtCLP_V89(c.ahorro) + '</span></div>' : '') +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px"><span style="font-size:13px;font-weight:900;color:#5b21b6">TOTAL</span><span style="font-size:22px;font-weight:900;color:#7c3aed">' + window.fmtCLP_V89(c.total) + '</span></div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">' +
+          '<button onclick="if(confirm(\'¿Eliminar esta cotización?\')){var l=leads.find(function(x){return x.id===' + leadId + '});if(l&&Array.isArray(l.cotizaciones)){l.cotizaciones.splice(' + cotizIdx + ',1);if(typeof window.__V60_origSave===\'function\')window.__V60_origSave();else saveData();document.getElementById(\'v89-modal\').remove();if(window.renderCotizacionesV66)window.renderCotizacionesV66(' + leadId + ');}}" style="background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(220,38,38,.3);padding:8px 14px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🗑️ Eliminar cotización</button>' +
+          '<button onclick="document.getElementById(\'v89-modal\').remove()" style="background:#7c3aed;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">Cerrar</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  
+  modal.addEventListener('click', function(e){
+    if(e.target === modal) modal.remove();
+  });
+  
+  document.body.appendChild(modal);
+};
+
+// Sobrescribir renderCotizacionesV66 para hacer las tarjetas clickeables
+window.renderCotizacionesV66 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente) return;
+    const key = getClienteKey(cliente);
+    const deptos = getDeptosCliente(key);
+    const mc = document.getElementById('mc');
+    if(!mc) return;
+    mc.querySelectorAll('.section-cotizaciones-v66').forEach(function(v){ v.remove(); });
+    
+    const todasCotiz = [];
+    deptos.forEach(function(d){
+      if(Array.isArray(d.cotizaciones)){
+        d.cotizaciones.forEach(function(c, idx){
+          todasCotiz.push({cotiz: c, depto: d, idx: idx});
+        });
+      }
+    });
+    if(todasCotiz.length === 0) return;
+    
+    todasCotiz.sort(function(a,b){
+      return new Date(b.cotiz.fecha||0) - new Date(a.cotiz.fecha||0);
+    });
+    
+    const sec = document.createElement('div');
+    sec.className = 'section-cotizaciones-v66';
+    sec.style.cssText = 'margin-top:14px';
+    
+    let html = '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📋 Cotizaciones guardadas (' + todasCotiz.length + ') — click para ver detalles</div>';
+    
+    todasCotiz.forEach(function(item){
+      const c = item.cotiz;
+      const d = item.depto;
+      const total = c.total || 0;
+      const fechaFmt = c.fechaStr || (c.fecha ? new Date(c.fecha).toLocaleDateString('es-CL') : 'Sin fecha');
+      const dirDepto = d.address || ('Depto #' + d.id);
+      html += '<div onclick="abrirCotizacionV89(' + d.id + ',' + item.idx + ')" style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #7c3aed;border-radius:var(--rsm);padding:11px 14px;margin-bottom:8px;cursor:pointer;transition:all .15s" onmouseover="this.style.background=\'#faf5ff\';this.style.borderLeftColor=\'#5b21b6\'" onmouseout="this.style.background=\'\';this.style.borderLeftColor=\'#7c3aed\'">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:12px;font-weight:800;color:#1e1b4b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📋 ' + (c.tipologiaLabel || c.tipologia || 'Cotización') + ' · ' + (c.estilo || '—') + '</div>' +
+            '<div style="font-size:10px;color:var(--text2);margin-top:2px">' +
+              '🏠 ' + dirDepto + ' · 📅 ' + fechaFmt +
+              (c.paraNombre ? ' · 👤 ' + c.paraNombre : '') +
+              (c.usuarioCreador ? ' · ✏️ ' + c.usuarioCreador : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right">' +
+            '<div style="font-size:14px;font-weight:900;color:#7c3aed">' + window.fmtCLP_V89(total) + '</div>' +
+            (c.ahorro && c.ahorro > 0 ? '<div style="font-size:9px;color:#16a34a;font-weight:700">Ahorro: ' + window.fmtCLP_V89(c.ahorro) + '</div>' : '') +
+            '<div style="font-size:9px;color:#7c3aed;font-weight:800;margin-top:3px">↗ Click para abrir</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    
+    sec.innerHTML = html;
+    mc.appendChild(sec);
+  } catch(e){ console.warn('V89 cotiz:', e); }
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
