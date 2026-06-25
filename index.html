@@ -14266,6 +14266,102 @@ window.v94_crearBoton = function(){
 
 setTimeout(window.v94_crearBoton, 1500);
 setInterval(window.v94_crearBoton, 3000);
+  // ═══ V95: Forzar notas + detectar usuario ═══
+
+// Detección mejorada del usuario actual
+window.detectarUsuarioV95 = function(){
+  // Probar múltiples fuentes
+  if(window.usuarioActual){
+    if(typeof window.usuarioActual === 'string') return window.usuarioActual;
+    if(window.usuarioActual.email) return window.usuarioActual.email;
+    if(window.usuarioActual.user_metadata && window.usuarioActual.user_metadata.email) return window.usuarioActual.user_metadata.email;
+  }
+  if(window.usuarioEmail) return window.usuarioEmail;
+  
+  // sessionStorage
+  const ss1 = sessionStorage.getItem('usuario_email') || sessionStorage.getItem('user_email') || sessionStorage.getItem('email');
+  if(ss1) return ss1;
+  
+  // localStorage
+  const ls1 = localStorage.getItem('usuario_email') || localStorage.getItem('user_email') || localStorage.getItem('email');
+  if(ls1) return ls1;
+  
+  // Supabase auth en localStorage (Supabase v2)
+  const keys = Object.keys(localStorage);
+  for(let i = 0; i < keys.length; i++){
+    if(/supabase|auth-token|sb-/.test(keys[i])){
+      try {
+        const v = JSON.parse(localStorage.getItem(keys[i]));
+        if(v && v.user && v.user.email) return v.user.email;
+        if(v && v.currentSession && v.currentSession.user && v.currentSession.user.email) return v.currentSession.user.email;
+      } catch(e){}
+    }
+  }
+  
+  // Buscar en el DOM (encabezado de la app)
+  const elems = document.querySelectorAll('[class*="user"], [class*="usuario"], [id*="user"]');
+  for(let i = 0; i < elems.length; i++){
+    const m = (elems[i].textContent||'').match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+    if(m) return m[0];
+  }
+  
+  return '— no detectado —';
+};
+
+// Sobrescribir agregarAlHistorialV92 para usar la detección mejorada
+window.agregarAlHistorialV92 = function(clienteKey){
+  const deptos = getDeptosCliente(clienteKey);
+  const notas = window.getNotasSeguimientoV92(deptos);
+  if(!notas.actual || !notas.actual.trim()){
+    if(typeof toast === 'function') toast('⚠️ Escribe algo en la nota actual primero');
+    return;
+  }
+  if(!Array.isArray(notas.historial)) notas.historial = [];
+  
+  const usuario = window.detectarUsuarioV95();
+  
+  notas.historial.unshift({
+    id: 'h_' + Date.now() + '_' + Math.floor(Math.random()*999),
+    fecha: new Date().toISOString(),
+    fechaStr: new Date().toLocaleString('es-CL', {dateStyle:'medium', timeStyle:'short'}),
+    usuario: usuario,
+    texto: notas.actual.trim()
+  });
+  
+  notas.actual = '';
+  window.guardarNotasSeguimientoV92(clienteKey, notas);
+  if(typeof toast === 'function') toast('📌 Nota guardada en historial');
+  if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+    setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 100);
+  }
+};
+
+// setInterval propio que GARANTIZA la inyección de notas en perfil
+window.v95_garantizarNotas = function(){
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  if(!window.perfilCurrentLeadId) return;
+  
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  
+  // Verificar que el perfil esté abierto
+  if(mc.textContent.indexOf('Datos personales') === -1 && 
+     mc.textContent.indexOf('Departamentos del cliente') === -1) return;
+  
+  // Si ya existe la sección, no hacer nada
+  if(mc.querySelector('.section-notas-seguimiento-v92')) return;
+  
+  // Inyectar
+  if(typeof window.inyectarNotasSeguimientoV92 === 'function'){
+    window.inyectarNotasSeguimientoV92(window.perfilCurrentLeadId);
+  }
+};
+
+setInterval(window.v95_garantizarNotas, 1500);
+setTimeout(window.v95_garantizarNotas, 1500);
+setTimeout(window.v95_garantizarNotas, 4000);
+
+console.log('✅ V95 activo - notas garantizadas + usuario:', window.detectarUsuarioV95());
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
