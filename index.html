@@ -14362,6 +14362,115 @@ setTimeout(window.v95_garantizarNotas, 1500);
 setTimeout(window.v95_garantizarNotas, 4000);
 
 console.log('✅ V95 activo - notas garantizadas + usuario:', window.detectarUsuarioV95());
+  // ═══ V97: Notas robustas con fallback al lead directo ═══
+
+window.inyectarNotasSeguimientoV92 = function(currentId){
+  try {
+    const cliente = leads.find(function(x){ return x.id === currentId; });
+    if(!cliente){ console.warn('V97: cliente no encontrado para id', currentId); return; }
+    
+    // PRIMERO intentar con getDeptosCliente
+    let deptos = [];
+    let key = '';
+    try {
+      key = getClienteKey(cliente);
+      deptos = getDeptosCliente(key);
+    } catch(e){ console.warn('V97: getDeptosCliente falló', e); }
+    
+    // FALLBACK: si no hay deptos, usar el lead actual directamente
+    if(!deptos || !deptos.length){
+      deptos = [cliente];
+      key = cliente.email || ('id_' + cliente.id);
+      console.warn('V97: usando lead directamente como fallback');
+    }
+    
+    const mc = document.getElementById('mc');
+    if(!mc){ console.warn('V97: mc no existe'); return; }
+    
+    mc.querySelectorAll('.section-notas-seguimiento-v92').forEach(function(v){ v.remove(); });
+    
+    const notas = window.getNotasSeguimientoV92(deptos);
+    const historial = Array.isArray(notas.historial) ? notas.historial : [];
+    
+    const sec = document.createElement('div');
+    sec.className = 'section-notas-seguimiento-v92';
+    sec.style.cssText = 'margin-top:14px';
+    
+    let histHtml = '';
+    if(historial.length === 0){
+      histHtml = '<div style="padding:14px;text-align:center;color:var(--text2);font-size:11px;background:var(--surface);border:2px dashed var(--border);border-radius:8px">Sin registros en el historial. Escribe una nota arriba y click en <b>📌 Agregar al historial</b>.</div>';
+    } else {
+      historial.forEach(function(h, idx){
+        const usuario = h.usuario || '—';
+        histHtml += '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #f59e0b;border-radius:var(--rsm);margin-bottom:8px;overflow:hidden">' +
+          '<div onclick="togglePlegarHistV92(\'' + h.id + '\')" style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;background:rgba(245,158,11,.06)">' +
+            '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">' +
+              '<span id="hist-arr-v92-' + h.id + '" style="font-size:11px;color:#d97706">' + (idx===0?'▼':'▶') + '</span>' +
+              '<span style="font-size:11px;font-weight:800;color:#92400e">📌 ' + (h.fechaStr || (h.fecha ? new Date(h.fecha).toLocaleString('es-CL') : '—')) + '</span>' +
+              '<span style="font-size:10px;color:var(--text2);background:#fff;padding:2px 8px;border-radius:10px;border:1px solid var(--border)">👤 ' + usuario + '</span>' +
+            '</div>' +
+            '<button onclick="event.stopPropagation();eliminarHistorialV92(\'' + key + '\',\'' + h.id + '\')" style="background:none;border:1px solid var(--border2);color:#dc2626;padding:3px 7px;border-radius:5px;font-size:11px;cursor:pointer">🗑️</button>' +
+          '</div>' +
+          '<div id="hist-body-v92-' + h.id + '" style="padding:12px 16px;display:' + (idx===0?'block':'none') + ';white-space:pre-wrap;font-size:12px;line-height:1.5;color:var(--text)">' + 
+            (h.texto || '').replace(/</g,'&lt;').replace(/>/g,'&gt;') +
+          '</div>' +
+        '</div>';
+      });
+    }
+    
+    sec.innerHTML = 
+      '<div class="N" style="font-size:13px;font-weight:900;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📋 Notas de seguimiento' + (historial.length > 0 ? ' (' + historial.length + ' en historial)' : '') + '</div>' +
+      '<div style="background:var(--surface);border:2px solid var(--border);border-left:4px solid #2563eb;border-radius:var(--rsm);padding:14px;margin-bottom:10px">' +
+        '<div style="font-size:11px;font-weight:800;color:#1e40af;text-transform:uppercase;margin-bottom:6px">✏️ Nota actual (estado del cliente)</div>' +
+        '<textarea placeholder="Ej: Cliente acepta la cotización. Pendiente firma contrato. Llamar el viernes para coordinar visita..." onchange="updNotaActualV92(\'' + key + '\',this.value)" oninput="updNotaActualV92(\'' + key + '\',this.value)" style="width:100%;min-height:80px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;line-height:1.5;resize:vertical;background:#fff">' + (notas.actual || '') + '</textarea>' +
+        '<div style="display:flex;justify-content:flex-end;margin-top:8px"><button onclick="agregarAlHistorialV92(\'' + key + '\')" style="background:#2563eb;color:#fff;border:none;padding:7px 14px;font-size:11px;font-weight:800;border-radius:6px;cursor:pointer">📌 Agregar al historial</button></div>' +
+      '</div>' +
+      histHtml;
+    
+    mc.appendChild(sec);
+    console.log('✅ V97: notas inyectadas - ' + historial.length + ' en historial');
+  } catch(e){ console.warn('V97 inyectar notas:', e); }
+};
+
+// También robustecer guardarNotasSeguimientoV92 para usar el lead directamente si falla
+const __origGuardar92 = window.guardarNotasSeguimientoV92;
+window.guardarNotasSeguimientoV92 = function(clienteKey, notas){
+  try {
+    let deptos = [];
+    try { deptos = getDeptosCliente(clienteKey); } catch(e){}
+    
+    if(!deptos || !deptos.length){
+      // Buscar lead por id (clienteKey puede ser 'id_113')
+      if(typeof clienteKey === 'string' && clienteKey.indexOf('id_') === 0){
+        const id = parseInt(clienteKey.replace('id_',''));
+        const l = leads.find(function(x){ return x.id === id; });
+        if(l) deptos = [l];
+      } else if(window.perfilCurrentLeadId){
+        const l = leads.find(function(x){ return x.id === window.perfilCurrentLeadId; });
+        if(l) deptos = [l];
+      }
+    }
+    
+    deptos.forEach(function(l){
+      l.notas_seguimiento = JSON.parse(JSON.stringify(notas));
+    });
+    
+    if(typeof saveData === 'function') saveData();
+    console.log('✅ V97: notas guardadas en ' + deptos.length + ' depto(s)');
+  } catch(e){ console.warn('V97 guardar:', e); }
+};
+
+// setInterval que GARANTIZA la inyección
+setInterval(function(){
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  if(!window.perfilCurrentLeadId) return;
+  const mc = document.getElementById('mc');
+  if(!mc) return;
+  if(mc.textContent.indexOf('Datos personales') === -1) return;
+  if(!mc.querySelector('.section-notas-seguimiento-v92')){
+    window.inyectarNotasSeguimientoV92(window.perfilCurrentLeadId);
+  }
+}, 1200);
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
