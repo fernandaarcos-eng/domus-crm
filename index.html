@@ -14471,6 +14471,102 @@ setInterval(function(){
     window.inyectarNotasSeguimientoV92(window.perfilCurrentLeadId);
   }
 }, 1200);
+    // ═══════════════════════════════════════════════════════════
+// ═══ V99: Auto-sincronización agresiva ══════════════════
+// ═══════════════════════════════════════════════════════════
+
+window.V99_INTERVAL_MS = 30000; // 30 segundos
+window.V99_ULTIMA_SYNC = 0;
+window.V99_SYNC_ACTIVO = false;
+
+// Sync silencioso (sin toast, sin interrumpir)
+window.v99_syncSilencioso = async function(){
+  if(window.V99_SYNC_ACTIVO) return;
+  // No sincronizar si el usuario está editando
+  if(window.v79_estoyEditando && window.v79_estoyEditando()) return;
+  // No sincronizar si hay cambios sin guardar (podría sobrescribirlos)
+  if(window.__V60_dirty){
+    console.log('V99: cambios sin guardar, saltando sync');
+    return;
+  }
+  
+  window.V99_SYNC_ACTIVO = true;
+  try {
+    if(typeof window.loadFromCloud === 'function'){
+      const r = window.loadFromCloud();
+      if(r && typeof r.then === 'function') await r;
+      window.V99_ULTIMA_SYNC = Date.now();
+      console.log('V99: sync OK - ' + new Date().toLocaleTimeString('es-CL'));
+      
+      // Re-render la vista actual si es un perfil (para mostrar los cambios nuevos)
+      if(window.perfilCurrentLeadId && typeof renderClientePerfil === 'function'){
+        setTimeout(function(){ renderClientePerfil(window.perfilCurrentLeadId); }, 300);
+      }
+    }
+  } catch(e){ console.warn('V99 sync:', e); }
+  window.V99_SYNC_ACTIVO = false;
+};
+
+// 1) Sync cada 30 segundos
+setInterval(window.v99_syncSilencioso, window.V99_INTERVAL_MS);
+
+// 2) Sync al volver a la pestaña
+document.addEventListener('visibilitychange', function(){
+  if(!document.hidden){
+    // Solo si han pasado al menos 5 segundos desde el último sync
+    if(Date.now() - window.V99_ULTIMA_SYNC > 5000){
+      setTimeout(window.v99_syncSilencioso, 800);
+    }
+  }
+});
+
+// 3) Sync al reconectar la red
+window.addEventListener('online', function(){
+  console.log('V99: red restaurada, sincronizando');
+  setTimeout(window.v99_syncSilencioso, 1500);
+});
+
+// 4) Indicador visual de última sincronización
+window.v99_actualizarIndicador = function(){
+  let el = document.getElementById('v99-indicator-sync');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'v99-indicator-sync';
+    el.style.cssText = 'position:fixed;bottom:180px;right:18px;background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;padding:5px 10px;border-radius:12px;font-size:9px;font-weight:700;font-family:\'Nunito\',sans-serif;z-index:9200;box-shadow:0 2px 6px rgba(0,0,0,.06);pointer-events:none';
+    document.body.appendChild(el);
+  }
+  if(window.V99_ULTIMA_SYNC === 0){
+    el.textContent = '🔄 Aún no sincronizado';
+    return;
+  }
+  const seg = Math.floor((Date.now() - window.V99_ULTIMA_SYNC) / 1000);
+  let texto;
+  if(seg < 60) texto = '🔄 Sync hace ' + seg + 's';
+  else if(seg < 3600) texto = '🔄 Sync hace ' + Math.floor(seg/60) + 'm';
+  else texto = '🔄 Sync hace ' + Math.floor(seg/3600) + 'h';
+  el.textContent = texto;
+  // Color verde si sync reciente (<60s), amarillo si >60s
+  if(seg < 60){
+    el.style.background = '#dcfce7';
+    el.style.color = '#166534';
+    el.style.borderColor = '#86efac';
+  } else if(seg < 300){
+    el.style.background = '#fef3c7';
+    el.style.color = '#92400e';
+    el.style.borderColor = '#fde68a';
+  } else {
+    el.style.background = '#fee2e2';
+    el.style.color = '#991b1b';
+    el.style.borderColor = '#fecaca';
+  }
+};
+setInterval(window.v99_actualizarIndicador, 3000);
+setTimeout(window.v99_actualizarIndicador, 1500);
+
+// 5) Sync inmediato al cargar
+setTimeout(window.v99_syncSilencioso, 8000);
+
+console.log('✅ V99 activo - sync cada ' + (window.V99_INTERVAL_MS/1000) + 's');
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
