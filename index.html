@@ -14567,6 +14567,146 @@ setTimeout(window.v99_actualizarIndicador, 1500);
 setTimeout(window.v99_syncSilencioso, 8000);
 
 console.log('✅ V99 activo - sync cada ' + (window.V99_INTERVAL_MS/1000) + 's');
+  // ═══════════════════════════════════════════════════════════
+// ═══ V100: Cotización guardada = idéntica al PDF ══════════
+// ═══════════════════════════════════════════════════════════
+
+// Capturar HTML de la vista del cotizador actual
+window.capturarSnapshotCotizacionV100 = function(){
+  const mc = document.getElementById('mc');
+  if(!mc) return null;
+  // Clonar el contenido del mc excluyendo botones no-imprimibles
+  const clon = mc.cloneNode(true);
+  // Quitar elementos que no deben aparecer en el snapshot
+  clon.querySelectorAll('.no-print, .no-snapshot, button[onclick*="volver"], button[onclick*="Volver"], input[type=file], .v54-tabs, #v54-tabs, .v83-btn-elim-depto, #v65-btn-elim-perfil, #v68-btn-elim-perfil').forEach(function(el){ el.remove(); });
+  // Deshabilitar todos los inputs/selects/textareas en el snapshot
+  clon.querySelectorAll('input, select, textarea, button').forEach(function(el){
+    el.setAttribute('disabled', 'disabled');
+    el.style.pointerEvents = 'none';
+  });
+  return clon.innerHTML;
+};
+
+// Guardar cotización con snapshot HTML
+window.guardarCotizacionConSnapshotV100 = function(leadId, cotizacion){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l){ if(typeof toast==='function')toast('⚠️ Lead no encontrado'); return; }
+  if(!Array.isArray(l.cotizaciones)) l.cotizaciones = [];
+  
+  if(!cotizacion.id) cotizacion.id = 'cotiz_' + Date.now() + '_' + Math.floor(Math.random()*999);
+  if(!cotizacion.fecha) cotizacion.fecha = new Date().toISOString();
+  if(!cotizacion.fechaStr) cotizacion.fechaStr = new Date().toLocaleString('es-CL', {dateStyle:'medium', timeStyle:'short'});
+  
+  // Capturar el HTML actual del cotizador
+  if(!cotizacion.htmlSnapshot){
+    cotizacion.htmlSnapshot = window.capturarSnapshotCotizacionV100();
+    console.log('V100: HTML snapshot capturado - ' + (cotizacion.htmlSnapshot ? cotizacion.htmlSnapshot.length : 0) + ' bytes');
+  }
+  
+  l.cotizaciones.push(cotizacion);
+  
+  if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+  else if(typeof saveData === 'function') saveData();
+  
+  if(typeof toast === 'function') toast('💾 Cotización guardada con vista exacta');
+  return cotizacion;
+};
+
+// Interceptar todas las formas conocidas de guardar cotización para agregar snapshot
+window.v100_interceptarGuardado = function(){
+  ['guardarCotizacionCliente', 'guardarCotizacion', 'copiarCotizacionCliente', 'guardarCotizacionV70'].forEach(function(fnName){
+    if(typeof window[fnName] === 'function' && !window[fnName].__v100_wrapped){
+      const orig = window[fnName];
+      window[fnName] = function(){
+        // Capturar snapshot ANTES de que el original modifique el DOM
+        const snapshot = window.capturarSnapshotCotizacionV100();
+        const result = orig.apply(this, arguments);
+        // Buscar la cotización recién agregada y agregarle snapshot
+        setTimeout(function(){
+          leads.forEach(function(l){
+            if(!Array.isArray(l.cotizaciones)) return;
+            const ultima = l.cotizaciones[l.cotizaciones.length - 1];
+            if(ultima && !ultima.htmlSnapshot && snapshot){
+              // Solo asignar si la cotización es MUY reciente (últimos 3 segundos)
+              const fechaMs = ultima.fecha ? new Date(ultima.fecha).getTime() : 0;
+              if(Date.now() - fechaMs < 3000){
+                ultima.htmlSnapshot = snapshot;
+                console.log('V100: snapshot asignado a cotización', ultima.id);
+                if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+              }
+            }
+          });
+        }, 500);
+        return result;
+      };
+      window[fnName].__v100_wrapped = true;
+      console.log('V100: interceptado ' + fnName);
+    }
+  });
+};
+window.v100_interceptarGuardado();
+setTimeout(window.v100_interceptarGuardado, 3000);
+setTimeout(window.v100_interceptarGuardado, 8000);
+
+// Sobrescribir abrirCotizacionV89: si tiene htmlSnapshot, mostrarlo tal cual
+const __origAbrirV100 = window.abrirCotizacionV89;
+window.abrirCotizacionV89 = function(leadId, cotizIdx){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !Array.isArray(l.cotizaciones)){ 
+    if(__origAbrirV100) return __origAbrirV100(leadId, cotizIdx); 
+    return; 
+  }
+  const c = l.cotizaciones[parseInt(cotizIdx)];
+  if(!c){ 
+    if(__origAbrirV100) return __origAbrirV100(leadId, cotizIdx); 
+    return; 
+  }
+  
+  // Si NO tiene snapshot, usar la vista antigua (V91)
+  if(!c.htmlSnapshot){
+    if(__origAbrirV100) return __origAbrirV100(leadId, cotizIdx);
+    return;
+  }
+  
+  // Cerrar modal previo
+  const prev = document.getElementById('v89-modal');
+  if(prev) prev.remove();
+  
+  const modal = document.createElement('div');
+  modal.id = 'v89-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(20,15,40,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(4px);font-family:\'Nunito Sans\',sans-serif';
+  
+  modal.innerHTML = 
+    '<div style="background:#fff;border-radius:14px;max-width:920px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.25)">' +
+      '<div class="no-print" style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:#f9fafb;border-bottom:1px solid #e5e7eb;position:sticky;top:0;z-index:2">' +
+        '<div><div style="font-size:12px;font-weight:800;color:#5b21b6">📸 ' + (c.tipologiaLabel || c.tipologia || 'Cotización') + ' · ' + (c.estilo || '—') + '</div>' +
+        '<div style="font-size:10px;color:#6b7280;margin-top:2px">Vista guardada tal cual el ' + (c.fechaStr || (c.fecha ? new Date(c.fecha).toLocaleString('es-CL') : '—')) + '</div></div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button onclick="window.print()" style="background:#7c3aed;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">🖨️ Imprimir / PDF</button>' +
+          '<button onclick="if(confirm(\'¿Eliminar esta cotización?\')){var l=leads.find(function(x){return x.id===' + leadId + '});if(l&&Array.isArray(l.cotizaciones)){l.cotizaciones.splice(' + cotizIdx + ',1);if(typeof window.__V60_origSave===\'function\')window.__V60_origSave();else saveData();document.getElementById(\'v89-modal\').remove();if(window.renderCotizacionesV66)window.renderCotizacionesV66(' + leadId + ');}}" style="background:rgba(220,38,38,.1);color:#dc2626;border:1px solid rgba(220,38,38,.3);padding:7px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">🗑️</button>' +
+          '<button onclick="document.getElementById(\'v89-modal\').remove()" style="background:none;border:1px solid #d1d5db;color:#374151;padding:7px 14px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer">✕ Cerrar</button>' +
+        '</div>' +
+      '</div>' +
+      '<div id="v100-print-area" style="padding:20px 24px">' + c.htmlSnapshot + '</div>' +
+    '</div>';
+  
+  modal.addEventListener('click', function(e){ if(e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
+};
+
+// Botón "📸 Capturar snapshot" para cotizaciones viejas sin snapshot
+window.v100_capturarSnapshotManual = function(leadId, cotizIdx){
+  const l = leads.find(function(x){ return x.id === leadId; });
+  if(!l || !Array.isArray(l.cotizaciones)) return;
+  const c = l.cotizaciones[parseInt(cotizIdx)];
+  if(!c) return;
+  
+  const snap = window.capturarSnapshotCotizacionV100();
+  if(!snap){ if(typeof toast==='function')toast('⚠️ No hay vista para capturar. Abre el cotizador primero.'); return; }
+  c.htmlSnapshot = snap;
+  if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
+  if(typeof toast === 'function') toast('📸 Snapshot capturado');
+};
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
