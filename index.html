@@ -14707,6 +14707,23 @@ window.v100_capturarSnapshotManual = function(leadId, cotizIdx){
   if(typeof window.__V60_origSave === 'function') window.__V60_origSave();
   if(typeof toast === 'function') toast('📸 Snapshot capturado');
 };
+  // ═══ V101: Desactivar V99 auto-sync ═══
+
+// Sobreescribir con noop
+window.v99_syncSilencioso = function(){};
+window.v99_actualizarIndicador = function(){};
+
+// Eliminar el indicador visual si existe
+setInterval(function(){
+  var el = document.getElementById('v99-indicator-sync');
+  if(el) el.remove();
+}, 1000);
+
+// Restaurar bandera
+window.V99_INTERVAL_MS = 0;
+window.V99_SYNC_ACTIVO = false;
+
+console.log('✅ V101: V99 auto-sync desactivado');
 // Load from cloud on startup
     // ═══ V33: Quitar Propietarios pendientes + orden por más recientes ═══
 
