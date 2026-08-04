@@ -40,6 +40,8 @@
     // rows still only have (superseded by cuentas_cliente when both exist).
     cuentas_cliente: [], monto_pagado: '', pagos_amob: [],
     cuenta_banco: '', cuenta_email: '', cuenta_numero: '', cuenta_rut: '', cuenta_tipo: '', cuenta_titular: '',
+    // Cotizaciones del Cotizador de Amoblados guardadas para esta unidad.
+    cotizaciones: [],
   };
 
   function rowToPropiedad(row, clientId) {
@@ -60,6 +62,7 @@
     // always re-derive a fresh per-row array here.
     p.cuentas_cliente = Array.isArray(row.cuentas_cliente) ? row.cuentas_cliente.slice() : [];
     p.pagos_amob = Array.isArray(row.pagos_amob) ? row.pagos_amob.slice() : [];
+    p.cotizaciones = Array.isArray(row.cotizaciones) ? row.cotizaciones.slice() : [];
     p.stage = row.stage || 'prospecto';
     p.tipo_contrato = row.tipo_contrato || 'admin';
     return p;

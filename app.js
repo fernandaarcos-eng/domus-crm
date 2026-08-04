@@ -255,6 +255,7 @@
     departamentos: 'Departamentos',
     resumen: 'Resumen',
     contratos: 'Contratos y Pagos',
+    cotizador: 'Cotizador de Amoblados',
     equipo: 'Equipo y Claves',
     proximamente: 'Próximamente',
   };
@@ -263,7 +264,7 @@
     root.innerHTML =
       '<div class="empty">' +
       '<div class="empty-title">Próximamente</div>' +
-      '<p>Cotizador de amoblados, generación de contratos, gestión de fotografía, alianzas, criterios V4, formularios y propietarios agrupados se incorporarán en una próxima etapa.</p>' +
+      '<p>Generación de contratos, gestión de fotografía, alianzas, criterios V4, formularios y propietarios agrupados se incorporarán en una próxima etapa.</p>' +
       '</div>';
   }
 
@@ -330,7 +331,7 @@
       let rows;
       if (demo) {
         const res = await fetch('seed_leads.json');
-        if (!res.ok) throw new Error('No se pudo cargar seed_leads.json');
+        if (!res.ok) throw new Error('No se pudo cargar data/seed_leads.json');
         rows = await res.json();
       } else {
         rows = await Api.loadFromCloud();
