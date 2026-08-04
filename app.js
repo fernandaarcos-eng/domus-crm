@@ -263,6 +263,7 @@
     resumen: 'Resumen',
     finanzas: 'Finanzas y Logística',
     reservas: 'Reservas',
+    contratos: 'Contratos y Pagos',
     equipo: 'Equipo y Claves',
     correos: 'Correos tipo',
     proximamente: 'Próximamente',
