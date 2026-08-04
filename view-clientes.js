@@ -80,10 +80,19 @@
   function render(root) {
     const state = State.getState();
     const search = state.search || '';
+    function maxUnitId(c) {
+      let max = 0;
+      (c.propiedades || []).forEach(function (p) {
+        const n = typeof p.id === 'number' ? p.id : parseInt(p.id, 10);
+        if (!isNaN(n) && n > max) max = n;
+      });
+      return max;
+    }
+
     const clients = state.clients
       .filter(function (c) { return matchesSearch(c, search); })
       .slice()
-      .sort(function (a, b) { return (a.name || '').localeCompare(b.name || '', 'es'); });
+      .sort(function (a, b) { return maxUnitId(b) - maxUnitId(a); });
 
     let html = '<div class="toolbar">' +
       '<div class="toolbar-left">' +
