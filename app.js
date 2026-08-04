@@ -263,7 +263,6 @@
     resumen: 'Resumen',
     contratos: 'Contratos y Pagos',
     equipo: 'Equipo y Claves',
-    correos: 'Correos tipo',
     proximamente: 'Próximamente',
   };
 
