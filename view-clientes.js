@@ -29,7 +29,6 @@
   function unitBlockHtml(p) {
     const stageLabel = Config.STAGE_LABELS[p.stage] || p.stage;
     const tipoLabel = Config.TIPO_CONTRATO_LABELS[p.tipo_contrato] || p.tipo_contrato;
-    const plataformas = (p.plataformas || []).join(', ');
     return (
       '<div class="unit-block">' +
       '<div class="unit-block-header">' +
@@ -45,7 +44,7 @@
       unitFieldHtml('Sofá cama', p.sofa_cama) + unitFieldHtml('Estacionamiento', p.estac) + unitFieldHtml('Aire acond.', p.ac) +
       unitFieldHtml('Calefacción', p.calef) + unitFieldHtml('Lavadora', p.lavadora) + unitFieldHtml('WiFi', p.wifi) +
       unitFieldHtml('Claves', p.claves) + unitFieldHtml('Equipamiento', p.equipamiento) + unitFieldHtml('Datos administración', p.datos_admin) +
-      unitFieldHtml('Comodidades', p.comodidades) + unitFieldHtml('Origen', p.origen) + unitFieldHtml('Plataformas', plataformas) +
+      unitFieldHtml('Comodidades', p.comodidades) + unitFieldHtml('Origen', p.origen) +
       unitFieldHtml('Notas', p.notes) +
       '</div>' +
       '</div>'

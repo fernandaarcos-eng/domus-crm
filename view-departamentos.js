@@ -47,11 +47,11 @@
       '</div>';
 
     html += '<div class="table-wrap"><table><thead><tr>' +
-      '<th>Unidad</th><th>Comuna</th><th>Cliente</th><th>Tipo contrato</th><th>Etapa</th><th>Dorm/Baños</th><th>Plataformas</th><th></th>' +
+      '<th>Unidad</th><th>Comuna</th><th>Cliente</th><th>Tipo contrato</th><th>Etapa</th><th>Dorm/Baños</th><th></th>' +
       '</tr></thead><tbody>';
 
     if (!filtered.length) {
-      html += '<tr><td colspan="8"><div class="empty">Sin resultados</div></td></tr>';
+      html += '<tr><td colspan="7"><div class="empty">Sin resultados</div></td></tr>';
     }
     filtered.forEach(function (r) {
       const p = r.p, c = r.client;
@@ -62,7 +62,6 @@
         '<td><span class="badge badge-blue">' + App.escapeHtml(Config.TIPO_CONTRATO_LABELS[p.tipo_contrato] || p.tipo_contrato || '—') + '</span></td>' +
         '<td><span class="badge badge-purple">' + App.escapeHtml(Config.STAGE_LABELS[p.stage] || p.stage || '—') + '</span></td>' +
         '<td>' + App.escapeHtml((p.dorm || '—') + ' / ' + (p.banos || '—')) + '</td>' +
-        '<td>' + App.escapeHtml((p.plataformas || []).join(', ') || '—') + '</td>' +
         '<td><button class="btn btn-ghost btn-sm" data-edit-unit="' + p.id + '">Editar</button></td>' +
         '</tr>';
     });

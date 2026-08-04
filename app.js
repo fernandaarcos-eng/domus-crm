@@ -108,11 +108,6 @@
     const tipoOptions = Object.keys(Config.TIPO_CONTRATO_LABELS).map(function (k) {
       return '<option value="' + k + '"' + (p.tipo_contrato === k ? ' selected' : '') + '>' + escapeHtml(Config.TIPO_CONTRATO_LABELS[k]) + '</option>';
     }).join('');
-    const plataformasChecks = Config.PLATAFORMAS.map(function (pl) {
-      const checked = (p.plataformas || []).indexOf(pl) !== -1 ? ' checked' : '';
-      return '<label style="display:flex;align-items:center;gap:6px;font-weight:400;"><input type="checkbox" style="width:auto;" name="plataforma" value="' + pl + '"' + checked + '> ' + pl + '</label>';
-    }).join('');
-
     let fieldsHtml = '';
     UNIT_FIELD_GROUPS.forEach(function (group) {
       fieldsHtml += '<div class="form-section">' + escapeHtml(group.title) + '</div><div class="form-grid">';
@@ -137,7 +132,6 @@
       '<div class="form-grid">' +
       '<div class="form-group"><label>Etapa del pipeline</label><select data-field="stage">' + stageOptions + '</select></div>' +
       '<div class="form-group"><label>Tipo de contrato</label><select data-field="tipo_contrato">' + tipoOptions + '</select></div>' +
-      '<div class="form-group full"><label>Plataformas</label><div style="display:flex;gap:14px;flex-wrap:wrap;">' + plataformasChecks + '</div></div>' +
       '</div>' +
       fieldsHtml +
       '</div>' +
@@ -158,7 +152,6 @@
       overlay.querySelectorAll('[data-field]').forEach(function (input) {
         p[input.dataset.field] = input.value;
       });
-      p.plataformas = Array.from(overlay.querySelectorAll('input[name="plataforma"]:checked')).map(function (c) { return c.value; });
       closeModal();
       State.persistAndNotify();
       toast('Unidad actualizada.', 'success');
