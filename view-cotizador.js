@@ -1,12 +1,14 @@
 // view-cotizador.js — Cotizador de Amoblados: calcula el costo de amoblar una
-// unidad (precio de lista, descuento vigente, descuento Cyber por nivel, IVA
-// opcional) y permite guardar la cotización en el historial de la unidad
-// (mismo formato que las cotizaciones ya existentes en la base de datos:
-// id, fecha, tipologia, tipologiaLabel, estilo, config, subtotal, total,
-// ahorro, paraNombre, paraEmail). Nota: la versión anterior del cotizador
-// permitía desmarcar ítems individuales del catálogo de muebles; ninguna de
-// las cotizaciones reales guardadas usa esa opción, así que se dejó fuera
-// para mantener esto simple.
+// unidad (precio de lista, descuento vigente, descuento por ítems removidos,
+// descuento Cyber por nivel, IVA opcional) y permite guardar la cotización en
+// el historial de la unidad (mismo formato que las cotizaciones ya
+// existentes en la base de datos: id, fecha, tipologia, tipologiaLabel,
+// estilo, config, subtotal, total, ahorro, paraNombre, paraEmail).
+//
+// El detalle de ítems (checkbox por mueble) sólo aplica a las secciones que
+// componen el paquete de "Amoblado" — la sección "ADICIONALES" del catálogo
+// se maneja aparte con el toggle "Adicionales", que usa su propio precio, así
+// que no se mezcla con el desmarcado individual.
 (function () {
   'use strict';
   const Config = window.DomusConfig;
@@ -24,16 +26,38 @@
     targetPropId: '',
     paraNombre: '',
     paraEmail: '',
+    itemsDesmarcados: {}, // { [tipologiaKey]: ['sectorIdx-itemIdx', ...] }
   };
+
+  let detalleAbierto = false;
 
   function findTipologia(key) {
     return Config.TIPOLOGIAS_AMOB.find(function (t) { return t.key === key; }) || Config.TIPOLOGIAS_AMOB[0];
   }
 
+  function calcDescuentoPorItems(tipKey, tpl) {
+    const desmarcados = cfg.itemsDesmarcados[tipKey] || [];
+    let descLista = 0, descDscto = 0;
+    desmarcados.forEach(function (key) {
+      const parts = key.split('-').map(Number);
+      const si = parts[0], ii = parts[1];
+      const sector = tpl.sectores[si];
+      const item = sector && sector.items[ii];
+      if (!item) return;
+      descLista += item[3] || 0;
+      descDscto += item[4] || 0;
+    });
+    return { descLista: descLista, descDscto: descDscto };
+  }
+
   function calcTotales() {
     const tpl = findTipologia(cfg.tipologia);
+    const itemsDesc = calcDescuentoPorItems(cfg.tipologia, tpl);
     let lista = 0, dscto = 0;
-    if (cfg.incluirAmoblado) { lista += tpl.amobFull; dscto += tpl.amobDscto; }
+    if (cfg.incluirAmoblado) {
+      lista += Math.max(0, tpl.amobFull - itemsDesc.descLista);
+      dscto += Math.max(0, tpl.amobDscto - itemsDesc.descDscto);
+    }
     if (cfg.incluirAdicionales) { lista += tpl.adicLista; dscto += tpl.adicDscto; }
     if (cfg.incluirAire) { lista += Config.AIRE_COSTO_AMOB; dscto += Config.AIRE_COSTO_AMOB; }
     const nivel = cfg.descuentoNivel || 0;
@@ -42,7 +66,7 @@
     const iva = cfg.conIva ? Math.round(subtotal * (Config.IVA_PCT_AMOB / 100)) : 0;
     const total = subtotal + iva;
     const ahorro = Math.max(0, lista - subtotal);
-    return { tpl: tpl, lista: lista, dscto: dscto, descuentoCyber: descuentoCyber, subtotal: subtotal, iva: iva, total: total, ahorro: ahorro };
+    return { tpl: tpl, lista: lista, dscto: dscto, descuentoCyber: descuentoCyber, subtotal: subtotal, iva: iva, total: total, ahorro: ahorro, itemsDesc: itemsDesc };
   }
 
   function allUnitsGrouped() {
@@ -53,6 +77,13 @@
     if (!cfg.targetPropId) return null;
     const found = State.findPropiedad(cfg.targetPropId);
     return found ? found : null;
+  }
+
+  function toggleItemDesmarcado(tipKey, key) {
+    if (!cfg.itemsDesmarcados[tipKey]) cfg.itemsDesmarcados[tipKey] = [];
+    const arr = cfg.itemsDesmarcados[tipKey];
+    const idx = arr.indexOf(key);
+    if (idx !== -1) arr.splice(idx, 1); else arr.push(key);
   }
 
   function chipBtn(active, label, dataAttr, dataVal) {
@@ -78,15 +109,40 @@
     return html;
   }
 
+  function detalleItemsHtml(tpl) {
+    const desmarcados = cfg.itemsDesmarcados[cfg.tipologia] || [];
+    let html = '';
+    tpl.sectores.forEach(function (s, si) {
+      if (s.nombre === 'ADICIONALES') return; // controlado por el toggle "Adicionales" de arriba
+      html += '<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--text2);margin:12px 0 4px;">' + App.escapeHtml(s.nombre) + '</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+      s.items.forEach(function (item, ii) {
+        const key = si + '-' + ii;
+        const checked = desmarcados.indexOf(key) === -1;
+        const precio = item[4] != null ? item[4] : item[3];
+        html += '<tr' + (checked ? '' : ' style="opacity:.45;"') + '>' +
+          '<td style="padding:3px 6px 3px 0;width:20px;"><input type="checkbox" data-item-toggle="' + key + '"' + (checked ? ' checked' : '') + ' style="width:auto;"></td>' +
+          '<td style="padding:3px 6px;">' + App.escapeHtml(item[0]) + (item[1] > 1 ? ' ×' + item[1] : '') + '</td>' +
+          '<td style="padding:3px 0;text-align:right;color:var(--text2);white-space:nowrap;">' + (precio != null ? App.fmtMoney(precio) : '—') + '</td>' +
+          '</tr>';
+      });
+      html += '</table>';
+    });
+    html += '<div class="text-muted" style="font-size:11px;margin-top:10px;">Los ítems de "Adicionales" (cortinas, chapa electrónica, luminarias, estacionamiento) se activan con el toggle "Adicionales" de arriba y no se desmarcan aquí.</div>';
+    return html;
+  }
+
   function historialHtml(p) {
     const cot = (p.cotizaciones || []).slice().sort(function (a, b) { return (b.fecha || '').localeCompare(a.fecha || ''); });
     if (!cot.length) return '<div class="text-muted">Sin cotizaciones guardadas para esta unidad.</div>';
     return cot.map(function (c) {
       const nivel = c.config && c.config.descuentoNivel ? c.config.descuentoNivel : 0;
+      const nDesmarcados = c.config && c.config.itemsDesmarcados && c.config.itemsDesmarcados[c.tipologia] ? c.config.itemsDesmarcados[c.tipologia].length : 0;
       return '<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">' +
         '<div>' +
         '<div style="font-weight:700;">' + App.escapeHtml(c.tipologiaLabel || c.tipologia || 'Cotización') + ' · ' + App.escapeHtml(c.estilo || '—') + '</div>' +
         '<div class="text-muted" style="font-size:12px;">' + App.escapeHtml(c.fechaStr || '') + (nivel ? ' · Cyber ' + nivel + '%' : '') +
+        (nDesmarcados ? ' · ' + nDesmarcados + ' ítem(s) removido(s)' : '') +
         (c.paraNombre ? ' · Para: ' + App.escapeHtml(c.paraNombre) : '') + '</div>' +
         '</div>' +
         '<div style="text-align:right;white-space:nowrap;">' +
@@ -101,6 +157,7 @@
   function render(root) {
     const t = calcTotales();
     const selected = getSelectedPropiedad();
+    const nDesmarcados = (cfg.itemsDesmarcados[cfg.tipologia] || []).length;
 
     let html = '<div class="toolbar"><div class="toolbar-left">' +
       '<span class="text-muted" style="font-size:12px;">Calcula el costo de amoblar una unidad y guarda la cotización en su historial.</span>' +
@@ -142,6 +199,16 @@
         return chipBtn(cfg.descuentoNivel === n, n === 0 ? 'Sin descuento' : 'Cyber ' + n + '%', 'set-nivel', n);
       }).join('') + '</div>';
 
+    html += '<div class="subsection-title" style="display:flex;align-items:center;justify-content:space-between;">' +
+      '<span>Ítems del amoblado' + (nDesmarcados ? ' <span class="badge badge-amber">' + nDesmarcados + ' removido(s)</span>' : '') + '</span>' +
+      '<button type="button" class="btn btn-ghost btn-sm" id="cotiz-toggle-detalle">' + (detalleAbierto ? 'Ocultar' : 'Ver detalle') + '</button>' +
+      '</div>';
+    if (detalleAbierto) {
+      html += detalleItemsHtml(t.tpl);
+    } else {
+      html += '<div class="text-muted" style="font-size:12px;">Desmarca muebles individuales (por ejemplo, si el propietario ya tiene cama o refrigerador) para descontarlos del total.</div>';
+    }
+
     html += '</div>'; // end left card
 
     // ---- Right: totals + save ----
@@ -150,6 +217,7 @@
     html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
       '<tr><td style="padding:6px 0;">Precio de lista</td><td style="padding:6px 0;text-align:right;">' + App.fmtMoney(t.lista) + '</td></tr>' +
       (t.lista !== t.dscto ? '<tr><td style="padding:6px 0;">Precio con descuento vigente</td><td style="padding:6px 0;text-align:right;">' + App.fmtMoney(t.dscto) + '</td></tr>' : '') +
+      (t.itemsDesc.descDscto ? '<tr><td style="padding:6px 0;color:var(--green-dark);">Descuento por ' + nDesmarcados + ' ítem(s) removido(s)</td><td style="padding:6px 0;text-align:right;color:var(--green-dark);">-' + App.fmtMoney(t.itemsDesc.descDscto) + '</td></tr>' : '') +
       (t.descuentoCyber ? '<tr><td style="padding:6px 0;color:var(--green-dark);">Descuento Cyber (' + cfg.descuentoNivel + '%)</td><td style="padding:6px 0;text-align:right;color:var(--green-dark);">-' + App.fmtMoney(t.descuentoCyber) + '</td></tr>' : '') +
       '<tr><td style="padding:6px 0;font-weight:700;border-top:1px solid var(--border);">Subtotal</td><td style="padding:6px 0;text-align:right;font-weight:700;border-top:1px solid var(--border);">' + App.fmtMoney(t.subtotal) + '</td></tr>' +
       (cfg.conIva ? '<tr><td style="padding:6px 0;">IVA (' + Config.IVA_PCT_AMOB + '%)</td><td style="padding:6px 0;text-align:right;">' + App.fmtMoney(t.iva) + '</td></tr>' : '') +
@@ -199,6 +267,16 @@
     const optIva = root.querySelector('#cotiz-opt-iva');
     if (optIva) optIva.addEventListener('change', function (e) { cfg.conIva = e.target.checked; render(root); });
 
+    const toggleDetalle = root.querySelector('#cotiz-toggle-detalle');
+    if (toggleDetalle) toggleDetalle.addEventListener('click', function () { detalleAbierto = !detalleAbierto; render(root); });
+
+    root.querySelectorAll('[data-item-toggle]').forEach(function (cb) {
+      cb.addEventListener('change', function (e) {
+        toggleItemDesmarcado(cfg.tipologia, e.target.dataset.itemToggle);
+        render(root);
+      });
+    });
+
     const unitSelect = root.querySelector('#cotiz-unit-select');
     if (unitSelect) {
       unitSelect.addEventListener('change', function (e) {
@@ -231,6 +309,9 @@
     if (!found) { App.toast('Selecciona una unidad para guardar la cotización.', 'error'); return; }
     const t = calcTotales();
     const now = new Date();
+    const itemsDesmarcadosOut = {};
+    const arrDesmarcados = cfg.itemsDesmarcados[cfg.tipologia] || [];
+    if (arrDesmarcados.length) itemsDesmarcadosOut[cfg.tipologia] = arrDesmarcados.slice();
     const cotizacion = {
       id: 'cotiz_' + Date.now() + '_' + Math.floor(Math.random() * 999),
       fecha: now.toISOString(),
@@ -249,7 +330,7 @@
         incluirAire: cfg.incluirAire,
         descuentoNivel: cfg.descuentoNivel || 0,
         incluirAmoblado: cfg.incluirAmoblado,
-        itemsDesmarcados: {},
+        itemsDesmarcados: itemsDesmarcadosOut,
         incluirAdicionales: cfg.incluirAdicionales,
         adicionalesDesmarcados: [],
       },
@@ -274,7 +355,7 @@
     const t = calcTotales();
     let texto = '🛋️ COTIZACIÓN DE AMOBLADO — ' + t.tpl.label + '\n';
     texto += 'Estilo: ' + (Config.ESTILOS_AMOB.find(function (e) { return e.key === cfg.estilo; }) || {}).label + '\n\n';
-    if (cfg.incluirAmoblado) texto += '• Amoblado: ' + App.fmtMoney(t.tpl.amobDscto) + '\n';
+    if (cfg.incluirAmoblado) texto += '• Amoblado: ' + App.fmtMoney(t.tpl.amobDscto - t.itemsDesc.descDscto) + '\n';
     if (cfg.incluirAdicionales) texto += '• Adicionales: ' + App.fmtMoney(t.tpl.adicDscto) + '\n';
     if (cfg.incluirAire) texto += '• Aire acondicionado: ' + App.fmtMoney(Config.AIRE_COSTO_AMOB) + '\n';
     if (t.descuentoCyber) texto += '• Descuento Cyber ' + cfg.descuentoNivel + '%: -' + App.fmtMoney(t.descuentoCyber) + '\n';
