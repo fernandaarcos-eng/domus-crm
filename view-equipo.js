@@ -19,6 +19,7 @@
   }
 
   function render(root) {
+    const focusSnap = App.captureFocus(root);
     const state = State.getState();
     const search = (state.search || '').toLowerCase();
 
@@ -66,6 +67,7 @@
     html += '</tbody></table></div>';
 
     root.innerHTML = html;
+    App.restoreFocus(root, focusSnap);
 
     document.getElementById('equipo-search').addEventListener('input', function (e) { State.setState({ search: e.target.value }); });
     document.getElementById('toggle-missing').addEventListener('click', function () { onlyMissing = !onlyMissing; render(root); });

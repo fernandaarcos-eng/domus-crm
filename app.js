@@ -31,6 +31,34 @@
     } catch (e) { return d; }
   }
 
+  // Views re-render their whole view-root on every keystroke in a search box
+  // (State.setState -> notify -> render), which replaces the <input> with a
+  // brand-new DOM node and drops focus — so without this, typing a second
+  // letter requires clicking back into the box first. captureFocus/
+  // restoreFocus save and reapply focus + cursor position across that
+  // innerHTML swap. Call captureFocus(root) right before re-rendering and
+  // restoreFocus(root, snap) right after root.innerHTML is replaced.
+  function captureFocus(root) {
+    const el = document.activeElement;
+    if (!el || !root || !root.contains(el) || !el.id) return null;
+    const snap = { id: el.id };
+    if (typeof el.selectionStart === 'number') {
+      snap.selectionStart = el.selectionStart;
+      snap.selectionEnd = el.selectionEnd;
+    }
+    return snap;
+  }
+
+  function restoreFocus(root, snap) {
+    if (!snap) return;
+    const el = (root && root.querySelector('#' + snap.id)) || document.getElementById(snap.id);
+    if (!el) return;
+    el.focus();
+    if (snap.selectionStart != null && typeof el.setSelectionRange === 'function') {
+      try { el.setSelectionRange(snap.selectionStart, snap.selectionEnd); } catch (e) { /* not a text-selectable input */ }
+    }
+  }
+
   function todayStr() {
     const d = new Date();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -237,6 +265,8 @@
     fmtDate: fmtDate,
     todayStr: todayStr,
     currentMonthStr: currentMonthStr,
+    captureFocus: captureFocus,
+    restoreFocus: restoreFocus,
     toast: toast,
     openModal: openModal,
     closeModal: closeModal,
@@ -330,7 +360,7 @@
     try {
       let rows;
       if (demo) {
-        const res = await fetch('seed_leads.json');
+        const res = await fetch('data/seed_leads.json');
         if (!res.ok) throw new Error('No se pudo cargar data/seed_leads.json');
         rows = await res.json();
       } else {

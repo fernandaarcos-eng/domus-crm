@@ -17,6 +17,7 @@
   }
 
   function render(root) {
+    const focusSnap = App.captureFocus(root);
     const state = State.getState();
     const search = state.search || '';
 
@@ -58,6 +59,7 @@
     html += '</div>';
 
     root.innerHTML = html;
+    App.restoreFocus(root, focusSnap);
 
     document.getElementById('pipeline-search').addEventListener('input', function (e) {
       State.setState({ search: e.target.value });

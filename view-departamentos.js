@@ -8,6 +8,7 @@
   let filters = { comuna: '', tipo: '', stage: '' };
 
   function render(root) {
+    const focusSnap = App.captureFocus(root);
     const state = State.getState();
     const search = state.search || '';
 
@@ -68,6 +69,7 @@
     html += '</tbody></table></div>';
 
     root.innerHTML = html;
+    App.restoreFocus(root, focusSnap);
 
     document.getElementById('depto-search').addEventListener('input', function (e) { State.setState({ search: e.target.value }); });
     document.getElementById('filter-comuna').addEventListener('change', function (e) { filters.comuna = e.target.value; render(root); });

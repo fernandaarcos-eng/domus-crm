@@ -87,6 +87,7 @@
   }
 
   function render(root) {
+    const focusSnap = App.captureFocus(root);
     const units = allUnits();
     const totalAdmin = units.filter(function (u) { return hasAdminContract(u.p); }).length;
     const totalCuenta = units.filter(function (u) { return hasAccount(u.p); }).length;
@@ -134,6 +135,7 @@
     html += '</tbody></table></div>';
 
     root.innerHTML = html;
+    App.restoreFocus(root, focusSnap);
 
     document.getElementById('contratos-search').addEventListener('input', function (e) {
       filters.search = e.target.value; render(root);
