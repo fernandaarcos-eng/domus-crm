@@ -58,6 +58,38 @@
     notify();
   }
 
+  // Elimina permanentemente una o más propiedades (unidades) por id. Fuera de
+  // modo demo, primero se borran como filas reales en Supabase (DELETE) — si
+  // eso falla, la promesa rechaza y el estado local queda sin tocar, para no
+  // mostrar algo como "eliminado" si en realidad la fila sigue en la nube. Si
+  // un cliente se queda sin ninguna unidad, también se quita del listado: no
+  // le queda nada que persistir ni que mostrar.
+  async function deletePropiedades(ids) {
+    if (!state.demoMode) {
+      await DomusApi.deleteRows(ids);
+    }
+    const idSet = new Set(ids.map(String));
+    state.clients.forEach(function (c) {
+      c.propiedades = (c.propiedades || []).filter(function (p) { return !idSet.has(String(p.id)); });
+    });
+    state.clients = state.clients.filter(function (c) { return (c.propiedades || []).length > 0; });
+    if (state.demoMode) {
+      const rows = DomusData.clientsToFlatRows(state.clients);
+      DomusApi.saveLocalOnly(rows);
+    }
+    notify();
+  }
+
+  // Elimina permanentemente un cliente y TODAS sus unidades (cada unidad es
+  // su propia fila en Supabase, así que esto es equivalente a deletePropiedades
+  // con todos los ids de ese cliente).
+  async function deleteClient(clientId) {
+    const client = findClientById(clientId);
+    if (!client) return;
+    const ids = (client.propiedades || []).map(function (p) { return p.id; });
+    await deletePropiedades(ids);
+  }
+
   function loadRows(rows) {
     const result = DomusData.flatRowsToClients(rows);
     state.clients = result.clients;
@@ -73,6 +105,8 @@
     findClientById: findClientById,
     findPropiedad: findPropiedad,
     persistAndNotify: persistAndNotify,
+    deletePropiedades: deletePropiedades,
+    deleteClient: deleteClient,
     loadRows: loadRows,
   };
 })(window);

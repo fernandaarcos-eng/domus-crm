@@ -187,12 +187,15 @@
       '</div>' +
       fieldsHtml +
       '</div>' +
-      '<div class="modal-footer">' +
+      '<div class="modal-footer" style="justify-content:space-between;">' +
+      '<button class="btn btn-ghost" id="unit-delete-btn" style="color:var(--red-dark);">🗑 Eliminar unidad</button>' +
+      '<div style="display:flex;gap:8px;">' +
       '<button class="btn btn-ghost" data-close>Cancelar</button>' +
       (p.perdido
         ? '<button class="btn btn-ghost" id="unit-reopen-btn">Reabrir</button>'
         : '<button class="btn btn-ghost" id="unit-mark-lost-btn" style="color:var(--red-dark);">Marcar como perdido</button>') +
       '<button class="btn btn-primary" id="unit-save-btn">Guardar</button>' +
+      '</div>' +
       '</div>'
     );
   }
@@ -241,6 +244,25 @@
     });
   }
 
+  // Elimina permanentemente una unidad (fila en Supabase incluida). Es
+  // irreversible, así que se confirma con la dirección exacta antes de tocar
+  // nada, y cualquier error de red deja la unidad intacta (deletePropiedades
+  // no toca el estado local si el DELETE en la nube falla).
+  function deletePropiedad(propId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    const label = p.address || ('Unidad #' + p.id);
+    confirmAction('¿Eliminar permanentemente "' + label + '"? Esta acción no se puede deshacer: la unidad y su historial se borran de la base de datos.', function () {
+      toast('Eliminando unidad…', 'info');
+      State.deletePropiedades([p.id]).then(function () {
+        toast('Unidad eliminada.', 'success');
+      }).catch(function (err) {
+        toast('No se pudo eliminar: ' + err.message, 'error');
+      });
+    });
+  }
+
   function openUnitEditModal(propId) {
     const found = State.findPropiedad(propId);
     if (!found) return;
@@ -251,6 +273,8 @@
     if (lostBtn) lostBtn.addEventListener('click', function () { openMarkLostModal(propId); });
     const reopenBtn = overlay.querySelector('#unit-reopen-btn');
     if (reopenBtn) reopenBtn.addEventListener('click', function () { reopenDeal(propId); });
+    const deleteBtn = overlay.querySelector('#unit-delete-btn');
+    if (deleteBtn) deleteBtn.addEventListener('click', function () { deletePropiedad(propId); });
     overlay.querySelector('#unit-save-btn').addEventListener('click', function () {
       const prevStage = p.stage;
       overlay.querySelectorAll('[data-field]').forEach(function (input) {
@@ -264,6 +288,7 @@
   }
 
   function clientEditFormHtml(c) {
+    const n = (c.propiedades || []).length;
     return (
       '<div class="modal-header"><div class="modal-title">' + (c.__isNew ? 'Nuevo cliente' : 'Editar cliente') + '</div>' +
       '<button class="modal-close" data-close>&times;</button></div>' +
@@ -272,8 +297,30 @@
       '<div class="form-group"><label>Correo</label><input type="email" data-field="email" value="' + escapeHtml(c.email || '') + '"></div>' +
       '<div class="form-group"><label>Teléfono</label><input type="text" data-field="phone" value="' + escapeHtml(c.phone || '') + '"></div>' +
       '</div></div>' +
-      '<div class="modal-footer"><button class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="client-save-btn">Guardar</button></div>'
+      '<div class="modal-footer" style="justify-content:space-between;">' +
+      (c.__isNew ? '<span></span>' : '<button class="btn btn-ghost" id="client-delete-btn" style="color:var(--red-dark);">🗑 Eliminar cliente' + (n ? ' (' + n + (n === 1 ? ' unidad)' : ' unidades)') : '') + '</button>') +
+      '<div style="display:flex;gap:8px;"><button class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="client-save-btn">Guardar</button></div>' +
+      '</div>'
     );
+  }
+
+  // Elimina permanentemente un cliente y TODAS sus unidades (cada unidad es
+  // su propia fila en Supabase). Irreversible — se confirma mostrando el
+  // nombre exacto y cuántas unidades se van a borrar con él.
+  function deleteClient(clientId) {
+    const client = State.findClientById(clientId);
+    if (!client) return;
+    const n = (client.propiedades || []).length;
+    const label = client.name || 'este cliente';
+    const unidadesTxt = n ? (' y ' + n + (n === 1 ? ' unidad' : ' unidades')) : '';
+    confirmAction('¿Eliminar permanentemente a "' + label + '"' + unidadesTxt + '? Esta acción no se puede deshacer: todos sus datos se borran de la base de datos.', function () {
+      toast('Eliminando cliente…', 'info');
+      State.deleteClient(clientId).then(function () {
+        toast('Cliente eliminado.', 'success');
+      }).catch(function (err) {
+        toast('No se pudo eliminar: ' + err.message, 'error');
+      });
+    });
   }
 
   function openClientEditModal(clientId) {
@@ -281,6 +328,8 @@
     if (!client) return;
     const overlay = openModal(clientEditFormHtml(client));
     overlay.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', closeModal); });
+    const deleteBtn = overlay.querySelector('#client-delete-btn');
+    if (deleteBtn) deleteBtn.addEventListener('click', function () { deleteClient(clientId); });
     overlay.querySelector('#client-save-btn').addEventListener('click', function () {
       overlay.querySelectorAll('[data-field]').forEach(function (input) {
         client[input.dataset.field] = input.value;

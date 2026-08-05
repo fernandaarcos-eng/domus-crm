@@ -132,6 +132,21 @@
     return true;
   }
 
+  // Borra filas de forma permanente en Supabase (DELETE real, no un upsert
+  // que simplemente las omite). scheduleSave/upsertRows nunca borran una fila
+  // que deja de aparecer en el array que se envía — así que eliminar un
+  // cliente o una propiedad necesita esta llamada aparte.
+  async function deleteRows(ids) {
+    if (!ids || !ids.length) return true;
+    const filter = ids.map(function (id) { return encodeURIComponent(String(id)); }).join(',');
+    const res = await supaFetch('/rest/v1/leads?id=in.(' + filter + ')', { method: 'DELETE' });
+    if (!res.ok) {
+      const text = await res.text().catch(function () { return ''; });
+      throw new Error('Error eliminando (' + res.status + '). ' + text);
+    }
+    return true;
+  }
+
   async function flushWithRetry(rows) {
     flushing = true;
     setStatus('saving');
@@ -198,6 +213,7 @@
     getStoredEmail: getStoredEmail,
     loadFromCloud: loadFromCloud,
     scheduleSave: scheduleSave,
+    deleteRows: deleteRows,
     saveLocalOnly: saveLocalOnly,
     loadBackupLocal: loadBackupLocal,
     onStatusChange: onStatusChange,
