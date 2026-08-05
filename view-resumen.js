@@ -5,6 +5,11 @@
   const State = window.DomusState;
   const App = window.DomusApp;
 
+  // Filtro de vendedora para el Embudo de pipeline: '' = todas. Se puede fijar
+  // desde el <select> sobre el embudo, o clickeando una tarjeta en
+  // "Rendimiento por vendedora" (que actúa como acceso directo al mismo filtro).
+  let filtroVendedora = '';
+
   function barRow(label, value, max) {
     const pct = max > 0 ? Math.round((value / max) * 100) : 0;
     return '<div class="bar-row"><div class="bar-label" title="' + App.escapeHtml(label) + '">' + App.escapeHtml(label) + '</div>' +
@@ -35,9 +40,14 @@
     const activos = propiedades.filter(function (p) { return p.stage === 'cliente_activo'; }).length;
     const multiUnit = clients.filter(function (c) { return (c.propiedades || []).length > 1; }).length;
 
+    // El embudo se puede acotar a una vendedora (filtroVendedora); el resto
+    // de las tarjetas de este dashboard siguen mostrando el total general.
+    const propiedadesEmbudo = filtroVendedora
+      ? propiedades.filter(function (p) { return p.vendedora === filtroVendedora; })
+      : propiedades;
     const stageCounts = {};
     Config.STAGES.forEach(function (s) { stageCounts[s.key] = 0; });
-    propiedades.forEach(function (p) { if (stageCounts[p.stage] != null) stageCounts[p.stage]++; });
+    propiedadesEmbudo.forEach(function (p) { if (stageCounts[p.stage] != null) stageCounts[p.stage]++; });
     const maxStage = Math.max.apply(null, Object.values(stageCounts).concat([1]));
 
     const tipoCounts = { admin: 0, admin_amob: 0 };
@@ -56,8 +66,16 @@
       statCard('Promedio unidades/cliente', totalClientes ? (totalUnidades / totalClientes).toFixed(1) : '0', '') +
       '</div>';
 
+    const vendedoraOptions = '<option value="">Todas las vendedoras</option>' +
+      Object.keys(Config.VENDEDORAS || {}).map(function (email) {
+        return '<option value="' + App.escapeHtml(email) + '"' + (filtroVendedora === email ? ' selected' : '') + '>' + App.escapeHtml(Config.VENDEDORAS[email]) + '</option>';
+      }).join('');
+
     html += '<div class="grid-2">';
-    html += '<div class="card"><div class="subsection-title">Embudo de pipeline (por unidad)</div>' +
+    html += '<div class="card"><div class="subsection-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+      '<span>Embudo de pipeline (por unidad)' + (filtroVendedora ? ' — ' + App.escapeHtml(Config.VENDEDORAS[filtroVendedora] || filtroVendedora) : '') + '</span>' +
+      '<select class="filter-select" id="embudo-vendedora-filter" style="width:auto;font-weight:400;">' + vendedoraOptions + '</select>' +
+      '</div>' +
       Config.STAGES.map(function (s) { return barRow(s.label, stageCounts[s.key], maxStage); }).join('') +
       '</div>';
 
@@ -72,9 +90,32 @@
       barRow(Config.TIPO_CONTRATO_LABELS.admin_amob, tipoCounts.admin_amob || 0, totalTipo || 1) +
       '</div>';
 
-    html += renderRendimientoPorVendedora(propiedades);
+    html += renderRendimientoPorVendedora(propiedades, filtroVendedora);
 
     root.innerHTML = html;
+
+    const filterSelect = document.getElementById('embudo-vendedora-filter');
+    if (filterSelect) {
+      filterSelect.addEventListener('change', function (e) {
+        filtroVendedora = e.target.value;
+        render(root);
+      });
+    }
+    // Las tarjetas de "Rendimiento por vendedora" funcionan como acceso directo
+    // al mismo filtro: click fija el embudo a esa vendedora, click de nuevo lo
+    // quita (toggle) — mismo estado que el <select> de arriba.
+    root.querySelectorAll('[data-filtro-vendedora]').forEach(function (card) {
+      card.addEventListener('click', function () {
+        const v = card.dataset.filtroVendedora;
+        filtroVendedora = (filtroVendedora === v) ? '' : v;
+        render(root);
+        // El embudo queda arriba del todo, fuera de la vista si se venía
+        // desplazada hacia "Rendimiento por vendedora" — llevar la vista de
+        // vuelta ahí para que el cambio sea visible sin scrollear a mano.
+        const updatedSelect = document.getElementById('embudo-vendedora-filter');
+        if (updatedSelect) updatedSelect.closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
   }
 
   function sumValorEstimado(list) {
@@ -95,12 +136,15 @@
     return ciclos.length ? Math.round(ciclos.reduce(function (a, b) { return a + b; }, 0) / ciclos.length) : null;
   }
 
-  function renderRendimientoPorVendedora(propiedades) {
+  function renderRendimientoPorVendedora(propiedades, filtroActivo) {
     const emails = Object.keys(Config.VENDEDORAS || {});
     if (!emails.length) return '';
 
     const currentMonth = App.currentMonthStr();
-    let html = '<div class="subsection-title" style="margin-top:24px;">Rendimiento por vendedora</div><div class="grid-2">';
+    let html = '<div class="subsection-title" style="margin-top:24px;display:flex;align-items:center;gap:8px;">' +
+      '<span>Rendimiento por vendedora</span>' +
+      '<span class="text-muted" style="font-size:11px;font-weight:400;">(click en una tarjeta para ver su embudo arriba)</span>' +
+      '</div><div class="grid-2">';
 
     emails.forEach(function (email) {
       const unidades = propiedades.filter(function (p) { return p.vendedora === email; });
@@ -120,9 +164,11 @@
         });
       });
       const meta = (Config.METAS_MENSUALES || {})[email] || {};
+      const isActive = filtroActivo === email;
 
-      html += '<div class="card">' +
-        '<div class="subsection-title">' + App.escapeHtml(Config.VENDEDORAS[email]) + '</div>' +
+      html += '<div class="card" data-filtro-vendedora="' + App.escapeHtml(email) + '" style="cursor:pointer;' +
+        (isActive ? 'border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-light);' : '') + '" title="Click para ver el embudo de pipeline de esta vendedora">' +
+        '<div class="subsection-title">' + App.escapeHtml(Config.VENDEDORAS[email]) + (isActive ? ' <span class="badge" style="background:var(--accent-light);color:var(--accent-dark);">Filtrando embudo ↑</span>' : '') + '</div>' +
         '<div class="stats" style="margin-bottom:14px;">' +
         statCard('Unidades', unidades.length, '') +
         statCard('Abiertas', abiertas.length, '') +
