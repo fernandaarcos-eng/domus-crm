@@ -410,12 +410,34 @@
       idle: 'Sin cambios',
       saving: 'Guardando…',
       saved: 'Guardado',
-      error: 'Error al guardar (respaldo local activo)',
+      error: 'Error al guardar (respaldo local activo) — click para ver detalle',
     };
     text.textContent = labels[status] || status;
     if (status === 'error' && extra) {
       toast('No se pudo guardar en la nube: ' + extra + '. Tus cambios quedaron respaldados en este navegador.', 'error');
     }
+  }
+
+  // El toast de error se desvanece solo a los pocos segundos, así que el
+  // indicador "Error al guardar" queda clickeable mientras el estado siga en
+  // error: reabre el detalle exacto (con el código/mensaje real de Supabase)
+  // y permite reintentar el guardado sin tener que editar algo primero.
+  function openSaveErrorModal() {
+    const detail = Api.getLastErrorDetail() || 'Error desconocido.';
+    const html =
+      '<div class="modal-header"><div class="modal-title">Error al guardar en la nube</div><button class="modal-close" data-close>&times;</button></div>' +
+      '<div class="modal-body">' +
+      '<p>' + escapeHtml(detail) + '</p>' +
+      '<p class="text-muted">Tus cambios quedaron respaldados en este navegador y no se han perdido, pero no se han sincronizado con Supabase. Si cierras esta pestaña o cambias de navegador antes de que el guardado funcione, esos cambios no estarán disponibles en otros dispositivos.</p>' +
+      '</div>' +
+      '<div class="modal-footer"><button class="btn btn-ghost" data-close>Cerrar</button><button class="btn btn-primary" id="save-retry-btn">Reintentar guardado</button></div>';
+    const overlay = openModal(html);
+    overlay.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', closeModal); });
+    overlay.querySelector('#save-retry-btn').addEventListener('click', function () {
+      closeModal();
+      toast('Reintentando guardado…', 'info');
+      State.persistAndNotify();
+    });
   }
 
   // ---------- login screen ----------
@@ -512,6 +534,12 @@
       toast('Tu sesión expiró. Vuelve a iniciar sesión.', 'error');
       showLogin();
     });
+    const saveIndicatorEl = document.getElementById('save-indicator');
+    if (saveIndicatorEl) {
+      saveIndicatorEl.addEventListener('click', function () {
+        if (Api.getSaveStatus() === 'error') openSaveErrorModal();
+      });
+    }
 
     if (Api.isLoggedIn()) {
       bootAuthenticated(Api.getStoredEmail(), false);

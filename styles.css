@@ -73,6 +73,7 @@ header.topbar { background: var(--surface); border-bottom: 1px solid var(--borde
 .save-indicator.saving .save-dot { background: var(--amber); animation: pulse 1s infinite; }
 .save-indicator.saved .save-dot { background: var(--green); }
 .save-indicator.error .save-dot { background: var(--red); }
+.save-indicator.error { cursor: pointer; color: var(--red-dark); text-decoration: underline dotted; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
 .user-chip { display: flex; align-items: center; gap: 7px; background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px 4px 6px; font-size: 12px; font-weight: 500; }
 .user-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-light); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--accent); }

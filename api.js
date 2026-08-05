@@ -10,15 +10,22 @@
   let authExpiredListeners = [];
   let pendingRows = null; // rows queued for the next debounced flush
   let flushing = false;
+  // Detalle del último error de guardado (mensaje real de Supabase, con
+  // status HTTP incluido cuando aplica) — el toast que lo muestra se
+  // desvanece a los pocos segundos, así que se guarda acá para poder
+  // consultarlo después (ej: al clickear el indicador "Error al guardar").
+  let lastErrorDetail = '';
 
   function setStatus(s, extra) {
     saveStatus = s;
+    if (s === 'error') lastErrorDetail = extra || 'Error desconocido';
     statusListeners.forEach(function (fn) { try { fn(s, extra); } catch (e) { /* noop */ } });
   }
 
   function onStatusChange(fn) { statusListeners.push(fn); }
   function onAuthExpired(fn) { authExpiredListeners.push(fn); }
   function getSaveStatus() { return saveStatus; }
+  function getLastErrorDetail() { return lastErrorDetail; }
 
   function getToken() { return localStorage.getItem(KEYS.token) || ''; }
   function getStoredEmail() { return localStorage.getItem(KEYS.email) || ''; }
@@ -196,5 +203,6 @@
     onStatusChange: onStatusChange,
     onAuthExpired: onAuthExpired,
     getSaveStatus: getSaveStatus,
+    getLastErrorDetail: getLastErrorDetail,
   };
 })(window);
