@@ -44,11 +44,13 @@
   // p.vendedora) -> nombre para mostrar.
   const VENDEDORAS = {
     'Daniela.galvis@domus-rentals.com': 'Daniela Galvis',
+    'fernanda.arcos@domus-rentals.com': 'Fernanda Arcos',
   };
 
   // Metas mensuales por vendedora, usadas por el semáforo de Resumen.
   const METAS_MENSUALES = {
     'Daniela.galvis@domus-rentals.com': { contratosMeta: 3, evaluacionesMeta: 12 },
+    'fernanda.arcos@domus-rentals.com': { contratosMeta: 3, evaluacionesMeta: 12 },
   };
 
   const MOTIVOS_PERDIDA = ['No responde', 'Precio no competitivo', 'Eligió otro operador', 'No calza con el edificio', 'Otro'];
