@@ -193,16 +193,42 @@
       '</div>';
   }
 
-  function pagoAmobCardHtml(pa) {
+  // pa.monto llega en formatos heterogéneos en datos reales ya guardados
+  // (número, o string con separadores mal puestos como "3.708873") — se
+  // muestra formateado cuando es numéricamente interpretable, y tal cual si
+  // no (para no perder/alterar datos históricos con formato raro).
+  function fmtMontoAmob(v) {
+    if (v == null || v === '') return '$0';
+    const n = typeof v === 'number' ? v : Number(String(v).replace(/[^\d]/g, ''));
+    return isNaN(n) ? App.escapeHtml(String(v)) : App.fmtMoney(n);
+  }
+
+  function comprobanteRowHtml(p, pa, c) {
+    const label = App.escapeHtml(c.nombre || c.name || 'Comprobante') + (c.fecha ? ' · ' + App.escapeHtml(c.fecha) : '');
+    const link = c.driveUrl
+      ? '<a href="' + App.escapeHtml(c.driveUrl) + '" target="_blank" rel="noopener">' + label + '</a>'
+      : label + (c.size ? ' (' + fmtBytes(c.size) + ')' : '');
+    return '<li style="margin-bottom:4px;">' + link +
+      ' <button class="btn btn-ghost btn-sm" data-del-comprobante="' + App.escapeHtml(c.id || '') + '" data-pago="' + App.escapeHtml(pa.id) + '" data-prop="' + p.id + '" style="padding:1px 7px;">✕</button>' +
+      '</li>';
+  }
+
+  function pagoAmobCardHtml(p, pa) {
     const comprobantes = pa.comprobantes || [];
     return '<div class="card">' +
-      '<div><b>' + App.fmtDate(pa.fecha) + '</b> — ' + App.escapeHtml(pa.monto || '') + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">' +
+      '<div><b>' + App.fmtDate(pa.fecha) + '</b> — ' + fmtMontoAmob(pa.monto) + '</div>' +
+      '<div style="display:flex;gap:6px;">' +
+      '<button class="btn btn-ghost btn-sm" data-edit-pago="' + App.escapeHtml(pa.id) + '" data-prop="' + p.id + '">Editar</button>' +
+      '<button class="btn btn-ghost btn-sm" data-del-pago="' + App.escapeHtml(pa.id) + '" data-prop="' + p.id + '">Eliminar</button>' +
+      '</div></div>' +
       (pa.notas ? '<div class="text-muted">' + App.escapeHtml(pa.notas) + '</div>' : '') +
+      '<div style="margin-top:8px;">' +
       (comprobantes.length
-        ? '<ul style="margin:8px 0 0 18px;padding:0;">' + comprobantes.map(function (c) {
-            return '<li>' + App.escapeHtml(c.name || 'Comprobante') + ' (' + fmtBytes(c.size) + ')</li>';
-          }).join('') + '</ul>'
-        : '') +
+        ? '<ul style="margin:0 0 8px 18px;padding:0;">' + comprobantes.map(function (c) { return comprobanteRowHtml(p, pa, c); }).join('') + '</ul>'
+        : '<div class="text-muted" style="font-size:12px;margin-bottom:8px;">Sin comprobante adjunto.</div>') +
+      '<button class="btn btn-ghost btn-sm" data-add-comprobante="' + App.escapeHtml(pa.id) + '" data-prop="' + p.id + '">📎 Adjuntar comprobante</button>' +
+      '</div>' +
       '</div>';
   }
 
@@ -228,9 +254,15 @@
       html += '<div class="subsection-title">Monto pagado</div><div class="card">' + App.escapeHtml(p.monto_pagado) + '</div>';
     }
 
-    if ((p.pagos_amob || []).length) {
+    if (amobApplies(p)) {
       html += '<div class="subsection-title">Pagos de amoblado</div>';
-      p.pagos_amob.forEach(function (pa) { html += pagoAmobCardHtml(pa); });
+      const pagos = p.pagos_amob || [];
+      if (!pagos.length) {
+        html += '<div class="text-muted" style="margin-bottom:10px;">Sin pagos registrados.</div>';
+      } else {
+        pagos.forEach(function (pa) { html += pagoAmobCardHtml(p, pa); });
+      }
+      html += '<button class="btn btn-ghost btn-sm" id="detalle-add-pago" data-prop="' + p.id + '">+ Agregar pago de amoblado</button>';
     }
 
     html += '</div><div class="modal-footer"><button class="btn btn-ghost" data-close>Cerrar</button></div>';
@@ -256,6 +288,21 @@
     });
     const addBtn = overlay.querySelector('#detalle-add-cuenta');
     if (addBtn) addBtn.addEventListener('click', function () { openCuentaEditModal(addBtn.dataset.prop, ''); });
+
+    const addPagoBtn = overlay.querySelector('#detalle-add-pago');
+    if (addPagoBtn) addPagoBtn.addEventListener('click', function () { openPagoAmobEditModal(addPagoBtn.dataset.prop, ''); });
+    overlay.querySelectorAll('[data-edit-pago]').forEach(function (b) {
+      b.addEventListener('click', function () { openPagoAmobEditModal(b.dataset.prop, b.dataset.editPago); });
+    });
+    overlay.querySelectorAll('[data-del-pago]').forEach(function (b) {
+      b.addEventListener('click', function () { deletePagoAmob(b.dataset.prop, b.dataset.delPago); });
+    });
+    overlay.querySelectorAll('[data-add-comprobante]').forEach(function (b) {
+      b.addEventListener('click', function () { openComprobanteEditModal(b.dataset.prop, b.dataset.addComprobante); });
+    });
+    overlay.querySelectorAll('[data-del-comprobante]').forEach(function (b) {
+      b.addEventListener('click', function () { deleteComprobante(b.dataset.prop, b.dataset.pago, b.dataset.delComprobante); });
+    });
   }
 
   // ---------- edit: contract (fecha, nombre, driveUrl) ----------
@@ -356,6 +403,111 @@
       App.closeModal();
       State.persistAndNotify();
       App.toast(accountId ? 'Cuenta actualizada.' : 'Cuenta agregada.', 'success');
+      openDetalleModal(propId);
+    });
+  }
+
+  // ---------- edit: pago de amoblado (fecha, monto, notas) ----------
+
+  function openPagoAmobEditModal(propId, pagoId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    p.pagos_amob = Array.isArray(p.pagos_amob) ? p.pagos_amob : [];
+
+    let existing = pagoId ? p.pagos_amob.find(function (pa) { return String(pa.id) === String(pagoId); }) : null;
+    existing = existing || { id: '', fecha: App.todayStr(), monto: '', notas: '', comprobantes: [] };
+
+    const html =
+      '<div class="modal-header"><div class="modal-title">' + (pagoId ? 'Editar pago de amoblado' : 'Agregar pago de amoblado') + '</div><button class="modal-close" data-close>&times;</button></div>' +
+      '<div class="modal-body"><div class="form-grid">' +
+      '<div class="form-group"><label>Fecha</label><input type="date" id="pa-fecha" value="' + App.escapeHtml(existing.fecha || '') + '"></div>' +
+      '<div class="form-group"><label>Monto total ingresado (CLP)</label><input type="text" id="pa-monto" placeholder="Ej: 3500000" value="' + App.escapeHtml(existing.monto != null ? String(existing.monto) : '') + '"></div>' +
+      '<div class="form-group full"><label>Notas</label><textarea id="pa-notas">' + App.escapeHtml(existing.notas || '') + '</textarea></div>' +
+      '</div></div>' +
+      '<div class="modal-footer"><button class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="pa-save-btn">Guardar</button></div>';
+
+    const overlay = App.openModal(html);
+    overlay.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', App.closeModal); });
+    overlay.querySelector('#pa-save-btn').addEventListener('click', function () {
+      const montoRaw = document.getElementById('pa-monto').value.trim();
+      const montoNum = Number(montoRaw.replace(/[^\d]/g, ''));
+      const data = {
+        id: existing.id || ('pago_' + Date.now() + '_' + Math.floor(Math.random() * 10000)),
+        fecha: document.getElementById('pa-fecha').value,
+        monto: montoRaw === '' ? '' : (isNaN(montoNum) ? montoRaw : montoNum),
+        notas: document.getElementById('pa-notas').value,
+        comprobantes: existing.comprobantes || [],
+      };
+      const idx = p.pagos_amob.findIndex(function (pa) { return String(pa.id) === String(data.id); });
+      if (idx !== -1) p.pagos_amob[idx] = data; else p.pagos_amob.push(data);
+      App.closeModal();
+      State.persistAndNotify();
+      App.toast(pagoId ? 'Pago actualizado.' : 'Pago agregado.', 'success');
+      openDetalleModal(propId);
+    });
+  }
+
+  function deletePagoAmob(propId, pagoId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    App.confirmAction('¿Eliminar este pago de amoblado y su(s) comprobante(s)?', function () {
+      p.pagos_amob = (p.pagos_amob || []).filter(function (pa) { return String(pa.id) !== String(pagoId); });
+      State.persistAndNotify();
+      App.toast('Pago eliminado.', 'success');
+      openDetalleModal(propId);
+    });
+  }
+
+  // ---------- edit: comprobante de pago (link de Drive) ----------
+
+  function openComprobanteEditModal(propId, pagoId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    const pa = (p.pagos_amob || []).find(function (x) { return String(x.id) === String(pagoId); });
+    if (!pa) return;
+
+    const html =
+      '<div class="modal-header"><div class="modal-title">Adjuntar comprobante de pago</div><button class="modal-close" data-close>&times;</button></div>' +
+      '<div class="modal-body"><div class="form-grid">' +
+      '<div class="form-group full"><label>Nombre</label><input type="text" id="co-nombre" value="Comprobante"></div>' +
+      '<div class="form-group full"><label>Link de Google Drive</label><input type="text" id="co-driveurl" placeholder="https://drive.google.com/file/d/…/view"></div>' +
+      '</div></div>' +
+      '<div class="modal-footer"><button class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-primary" id="co-save-btn">Guardar</button></div>';
+
+    const overlay = App.openModal(html);
+    overlay.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', App.closeModal); });
+    overlay.querySelector('#co-save-btn').addEventListener('click', function () {
+      const driveUrl = document.getElementById('co-driveurl').value.trim();
+      if (!driveUrl) { App.toast('Falta el link de Drive.', 'error'); return; }
+      const nombre = document.getElementById('co-nombre').value.trim() || 'Comprobante';
+      pa.comprobantes = Array.isArray(pa.comprobantes) ? pa.comprobantes : [];
+      pa.comprobantes.push({
+        id: 'comp_' + Date.now() + '_' + Math.floor(Math.random() * 10000),
+        nombre: nombre,
+        driveId: '',
+        driveUrl: driveUrl,
+        fecha: App.todayStr(),
+      });
+      App.closeModal();
+      State.persistAndNotify();
+      App.toast('Comprobante adjuntado.', 'success');
+      openDetalleModal(propId);
+    });
+  }
+
+  function deleteComprobante(propId, pagoId, comprobanteId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    const pa = (p.pagos_amob || []).find(function (x) { return String(x.id) === String(pagoId); });
+    if (!pa) return;
+    App.confirmAction('¿Eliminar este comprobante?', function () {
+      pa.comprobantes = (pa.comprobantes || []).filter(function (c) { return String(c.id) !== String(comprobanteId); });
+      State.persistAndNotify();
+      App.toast('Comprobante eliminado.', 'success');
       openDetalleModal(propId);
     });
   }
