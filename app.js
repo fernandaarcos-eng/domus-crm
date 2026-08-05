@@ -71,6 +71,14 @@
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
   }
 
+  // Appends one entry to p.stage_history. Called whenever a unit's stage
+  // actually changes (including on creation, and when a deal is marked
+  // lost) so Resumen can compute ciclo/metas from real transition dates.
+  function pushStageHistory(p, stage) {
+    if (!Array.isArray(p.stage_history)) p.stage_history = [];
+    p.stage_history.push({ stage: stage, date: todayStr(), vendedora: p.vendedora || State.getState().userEmail || '' });
+  }
+
   let toastTimer = 0;
   function toast(message, type) {
     const wrap = document.getElementById('toast-wrap');
@@ -116,6 +124,7 @@
   const UNIT_FIELD_GROUPS = [
     { title: 'Datos comerciales', fields: [
       ['comuna', 'Comuna'], ['address', 'Dirección'], ['origen', 'Origen'],
+      ['vendedora', 'Vendedora asignada'], ['valor_estimado_mensual', 'Valor estimado mensual (CLP)'],
     ] },
     { title: 'Características', fields: [
       ['dorm', 'Dormitorios'], ['banos', 'Baños'], ['camas', 'Camas'], ['sofa_cama', 'Sofá cama'],
@@ -136,11 +145,19 @@
     const tipoOptions = Object.keys(Config.TIPO_CONTRATO_LABELS).map(function (k) {
       return '<option value="' + k + '"' + (p.tipo_contrato === k ? ' selected' : '') + '>' + escapeHtml(Config.TIPO_CONTRATO_LABELS[k]) + '</option>';
     }).join('');
+    const vendedoraOptions = '<option value="">— Sin asignar —</option>' + Object.keys(Config.VENDEDORAS).map(function (email) {
+      return '<option value="' + escapeHtml(email) + '"' + (p.vendedora === email ? ' selected' : '') + '>' + escapeHtml(Config.VENDEDORAS[email]) + '</option>';
+    }).join('');
     let fieldsHtml = '';
     UNIT_FIELD_GROUPS.forEach(function (group) {
       fieldsHtml += '<div class="form-section">' + escapeHtml(group.title) + '</div><div class="form-grid">';
       group.fields.forEach(function (f) {
         const key = f[0], label = f[1];
+        if (key === 'vendedora') {
+          fieldsHtml += '<div class="form-group full"><label>' + escapeHtml(label) + '</label>' +
+            '<select data-field="vendedora">' + vendedoraOptions + '</select></div>';
+          return;
+        }
         const isTextarea = ['comodidades', 'notes', 'equipamiento', 'claves', 'datos_admin', 'wifi'].indexOf(key) !== -1;
         fieldsHtml += '<div class="form-group full">' +
           '<label>' + escapeHtml(label) + '</label>' +
@@ -152,10 +169,17 @@
       fieldsHtml += '</div>';
     });
 
+    const perdidoNote = p.perdido
+      ? '<div class="card" style="border-color:var(--red);background:var(--red-light);margin-bottom:16px;">' +
+        '<b>Marcado como perdido</b> — ' + escapeHtml(p.fecha_perdido || '') + (p.motivo_perdida ? ' · ' + escapeHtml(p.motivo_perdida) : '') +
+        '</div>'
+      : '';
+
     return (
       '<div class="modal-header"><div class="modal-title">Editar unidad — ' + escapeHtml(p.address || ('#' + p.id)) + '</div>' +
       '<button class="modal-close" data-close>&times;</button></div>' +
       '<div class="modal-body">' +
+      perdidoNote +
       '<div class="form-section">Estado</div>' +
       '<div class="form-grid">' +
       '<div class="form-group"><label>Etapa del pipeline</label><select data-field="stage">' + stageOptions + '</select></div>' +
@@ -165,9 +189,56 @@
       '</div>' +
       '<div class="modal-footer">' +
       '<button class="btn btn-ghost" data-close>Cancelar</button>' +
+      (p.perdido
+        ? '<button class="btn btn-ghost" id="unit-reopen-btn">Reabrir</button>'
+        : '<button class="btn btn-ghost" id="unit-mark-lost-btn" style="color:var(--red-dark);">Marcar como perdido</button>') +
       '<button class="btn btn-primary" id="unit-save-btn">Guardar</button>' +
       '</div>'
     );
+  }
+
+  function markLostFormHtml() {
+    const motivoOptions = Config.MOTIVOS_PERDIDA.map(function (m) {
+      return '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + '</option>';
+    }).join('');
+    return (
+      '<div class="modal-header"><div class="modal-title">Marcar como perdido</div><button class="modal-close" data-close>&times;</button></div>' +
+      '<div class="modal-body"><div class="form-grid">' +
+      '<div class="form-group full"><label>Motivo</label><select id="lost-motivo">' + motivoOptions + '</select></div>' +
+      '</div></div>' +
+      '<div class="modal-footer"><button class="btn btn-ghost" data-close>Cancelar</button><button class="btn btn-danger" id="lost-save-btn">Marcar como perdido</button></div>'
+    );
+  }
+
+  function openMarkLostModal(propId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    const overlay = openModal(markLostFormHtml());
+    overlay.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', closeModal); });
+    overlay.querySelector('#lost-save-btn').addEventListener('click', function () {
+      const motivo = document.getElementById('lost-motivo').value;
+      p.perdido = true;
+      p.fecha_perdido = todayStr();
+      p.motivo_perdida = motivo;
+      pushStageHistory(p, 'perdido');
+      closeModal();
+      State.persistAndNotify();
+      toast('Marcado como perdido.', 'success');
+    });
+  }
+
+  function reopenDeal(propId) {
+    const found = State.findPropiedad(propId);
+    if (!found) return;
+    const p = found.propiedad;
+    confirmAction('¿Reabrir este deal? Se quitará la marca de perdido.', function () {
+      p.perdido = false;
+      p.fecha_perdido = '';
+      p.motivo_perdida = '';
+      State.persistAndNotify();
+      toast('Deal reabierto.', 'success');
+    });
   }
 
   function openUnitEditModal(propId) {
@@ -176,10 +247,16 @@
     const p = found.propiedad;
     const overlay = openModal(unitEditFormHtml(p));
     overlay.querySelectorAll('[data-close]').forEach(function (b) { b.addEventListener('click', closeModal); });
+    const lostBtn = overlay.querySelector('#unit-mark-lost-btn');
+    if (lostBtn) lostBtn.addEventListener('click', function () { openMarkLostModal(propId); });
+    const reopenBtn = overlay.querySelector('#unit-reopen-btn');
+    if (reopenBtn) reopenBtn.addEventListener('click', function () { reopenDeal(propId); });
     overlay.querySelector('#unit-save-btn').addEventListener('click', function () {
+      const prevStage = p.stage;
       overlay.querySelectorAll('[data-field]').forEach(function (input) {
         p[input.dataset.field] = input.value;
       });
+      if (p.stage !== prevStage) pushStageHistory(p, p.stage);
       closeModal();
       State.persistAndNotify();
       toast('Unidad actualizada.', 'success');
@@ -237,7 +314,8 @@
       if (!name) { toast('El nombre es obligatorio.', 'error'); return; }
       const client = DomusData.createClient({ name: name, email: email, phone: phone });
       const propId = DomusData.nextPropertyId(State.getAllPropiedades());
-      const prop = DomusData.createPropiedad(propId, client.id, { address: address, comuna: comuna });
+      const prop = DomusData.createPropiedad(propId, client.id, { address: address, comuna: comuna, vendedora: State.getState().userEmail || '' });
+      pushStageHistory(prop, 'prospecto');
       client.propiedades.push(prop);
       state.clients.push(client);
       closeModal();

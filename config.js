@@ -40,6 +40,19 @@
 
   const PLATAFORMAS = ['Airbnb', 'Booking', 'Expedia', 'Directo', 'Otro'];
 
+  // Vendedoras habilitadas: email (clave de asignación, se guarda en
+  // p.vendedora) -> nombre para mostrar.
+  const VENDEDORAS = {
+    'Daniela.galvis@domus-rentals.com': 'Daniela Galvis',
+  };
+
+  // Metas mensuales por vendedora, usadas por el semáforo de Resumen.
+  const METAS_MENSUALES = {
+    'Daniela.galvis@domus-rentals.com': { contratosMeta: 3, evaluacionesMeta: 12 },
+  };
+
+  const MOTIVOS_PERDIDA = ['No responde', 'Precio no competitivo', 'Eligió otro operador', 'No calza con el edificio', 'Otro'];
+
   // Cotizador de Amoblados — precios por tipología (valores actuales, en CLP,
   // sin IVA). "Full" = precio de lista; "Dscto" = precio con descuento
   // vigente. Estas cifras fueron verificadas contra cotizaciones reales ya
@@ -77,6 +90,9 @@
     TIPO_CONTRATO_LABELS,
     RESERVA_ESTADOS,
     PLATAFORMAS,
+    VENDEDORAS,
+    METAS_MENSUALES,
+    MOTIVOS_PERDIDA,
     TIPOLOGIAS_AMOB,
     ESTILOS_AMOB,
     DESCUENTO_NIVELES_AMOB,

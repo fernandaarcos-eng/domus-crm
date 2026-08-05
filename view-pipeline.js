@@ -28,9 +28,15 @@
       });
     });
 
+    // Deals perdidos salen de las columnas normales del embudo (ya no están
+    // "avanzando" en ninguna etapa) y se agrupan en su propia columna al final.
+    const abiertos = rows.filter(function (r) { return !r.p.perdido; });
+    const perdidos = rows.filter(function (r) { return r.p.perdido; });
+
     const columns = Config.STAGES.map(function (s) {
-      return { stage: s, items: rows.filter(function (r) { return r.p.stage === s.key; }) };
+      return { stage: s, items: abiertos.filter(function (r) { return r.p.stage === s.key; }) };
     });
+    columns.push({ stage: { key: '__perdidos', label: 'Perdidos' }, items: perdidos, isLost: true });
 
     let html = '<div class="toolbar">' +
       '<div class="toolbar-left">' +
@@ -48,10 +54,13 @@
         html += '<div class="text-muted" style="font-size:12px;padding:8px 2px;">Sin unidades</div>';
       }
       col.items.forEach(function (r) {
+        const vendedoraLabel = Config.VENDEDORAS[r.p.vendedora] || 'Sin asignar';
         html += '<div class="pipeline-card" data-prop-id="' + r.p.id + '">' +
           '<div class="pipeline-card-name">' + App.escapeHtml(r.client.name || 'Sin nombre') + '</div>' +
           '<div class="pipeline-card-addr">' + App.escapeHtml(r.p.address || 'Sin dirección') + (r.p.comuna ? ' · ' + App.escapeHtml(r.p.comuna) : '') + '</div>' +
           '<div class="pipeline-card-meta">' + App.escapeHtml(Config.TIPO_CONTRATO_LABELS[r.p.tipo_contrato] || r.p.tipo_contrato || '') + '</div>' +
+          '<div class="pipeline-card-meta">👤 ' + App.escapeHtml(vendedoraLabel) + '</div>' +
+          (col.isLost && r.p.motivo_perdida ? '<div class="pipeline-card-meta" style="color:var(--red-dark);">✗ ' + App.escapeHtml(r.p.motivo_perdida) + '</div>' : '') +
           '</div>';
       });
       html += '</div></div>';

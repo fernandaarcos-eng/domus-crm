@@ -42,6 +42,17 @@
     cuenta_banco: '', cuenta_email: '', cuenta_numero: '', cuenta_rut: '', cuenta_tipo: '', cuenta_titular: '',
     // Cotizaciones del Cotizador de Amoblados guardadas para esta unidad.
     cotizaciones: [],
+    // Trazabilidad de vendedora asignada (email; ver Config.VENDEDORAS para el nombre).
+    vendedora: '',
+    // Historial de etapas: [{ stage, date, vendedora }, ...], empujado por
+    // App.pushStageHistory cada vez que cambia p.stage (o al crear la unidad,
+    // o al marcarla como perdida).
+    stage_history: [],
+    // Deals perdidos: bandera + fecha + motivo, independientes de p.stage
+    // (la unidad conserva su última etapa real; "perdido" es un estado aparte).
+    perdido: false, fecha_perdido: '', motivo_perdida: '',
+    // Ingreso mensual estimado del deal, en CLP, usado para valorizar el pipeline.
+    valor_estimado_mensual: '',
   };
 
   function rowToPropiedad(row, clientId) {
@@ -63,6 +74,7 @@
     p.cuentas_cliente = Array.isArray(row.cuentas_cliente) ? row.cuentas_cliente.slice() : [];
     p.pagos_amob = Array.isArray(row.pagos_amob) ? row.pagos_amob.slice() : [];
     p.cotizaciones = Array.isArray(row.cotizaciones) ? row.cotizaciones.slice() : [];
+    p.stage_history = Array.isArray(row.stage_history) ? row.stage_history.slice() : [];
     p.stage = row.stage || 'prospecto';
     p.tipo_contrato = row.tipo_contrato || 'admin';
     return p;
@@ -125,8 +137,15 @@
   }
 
   function createPropiedad(id, clientId, overrides) {
+    // plataformas/finanzas/reservas/stage_history/cuentas_cliente/pagos_amob/
+    // cotizaciones all default to [] on PROPIEDAD_DEFAULTS — a literal shared
+    // by every propiedad — so anything that mutates one of those arrays in
+    // place (like App.pushStageHistory) must get its OWN fresh array here,
+    // not the shared default, or every new unit would silently share one
+    // growing history.
     const p = Object.assign({ id: id, clientId: clientId }, PROPIEDAD_DEFAULTS, {
-      plataformas: [], finanzas: [], reservas: [],
+      plataformas: [], finanzas: [], reservas: [], stage_history: [],
+      cuentas_cliente: [], pagos_amob: [], cotizaciones: [],
     }, overrides || {});
     return p;
   }
