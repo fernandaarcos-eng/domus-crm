@@ -170,9 +170,164 @@
         '<div style="font-weight:800;">' + App.fmtMoney(c.total) + '</div>' +
         (c.ahorro ? '<div class="text-muted" style="font-size:11px;">Ahorro ' + App.fmtMoney(c.ahorro) + '</div>' : '') +
         '</div>' +
+        '<button class="btn btn-ghost btn-sm" data-download-cotiz="' + App.escapeHtml(c.id) + '">⬇ Descargar</button>' +
         '<button class="btn btn-ghost btn-sm" data-del-cotiz="' + App.escapeHtml(c.id) + '">Eliminar</button>' +
         '</div>';
     }).join('');
+  }
+
+  // ---------- descarga de cotización para el cliente (sin precio por ítem) ----------
+  //
+  // El documento que ve el cliente sólo muestra los nombres de los ítems
+  // incluidos (agrupados por sector) y los totales agregados (subtotal, IVA,
+  // total, ahorro) — nunca el precio individual de cada mueble, para no
+  // exponer el desglose de costos interno. Se genera como una página HTML
+  // imprimible en una pestaña nueva; el botón "Guardar como PDF / Imprimir"
+  // usa el diálogo de impresión del navegador (destino "Guardar como PDF"),
+  // sin depender de librerías externas.
+
+  function fmtFechaLabel(fechaIso) {
+    try {
+      const d = fechaIso ? new Date(fechaIso) : new Date();
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' });
+    } catch (e) { return ''; }
+  }
+
+  // Lista (sin precios) los ítems incluidos en la cotización, agrupados por
+  // sector. Respeta los ítems desmarcados del "Amoblado completo" y agrega
+  // "ADICIONALES" completo cuando ese toggle está activo (no tiene desmarcado
+  // individual, ver nota en el encabezado del archivo).
+  function itemsIncluidosHtml(tpl, itemsDesmarcados, incluirAmoblado, incluirAdicionales) {
+    function listaItems(items) {
+      return '<ul class="pdf-item-list">' + items.map(function (item) {
+        return '<li>' + App.escapeHtml(item[0]) + (item[1] > 1 ? ' <span class="pdf-qty">×' + item[1] + '</span>' : '') + '</li>';
+      }).join('') + '</ul>';
+    }
+    let html = '';
+    if (incluirAmoblado) {
+      tpl.sectores.forEach(function (s, si) {
+        if (s.nombre === 'ADICIONALES') return;
+        const items = s.items.filter(function (item, ii) { return itemsDesmarcados.indexOf(si + '-' + ii) === -1; });
+        if (!items.length) return;
+        html += '<div class="pdf-sector-title">' + App.escapeHtml(s.nombre) + '</div>' + listaItems(items);
+      });
+    }
+    if (incluirAdicionales) {
+      const adic = tpl.sectores.find(function (s) { return s.nombre === 'ADICIONALES'; });
+      if (adic && adic.items.length) {
+        html += '<div class="pdf-sector-title">ADICIONALES</div>' + listaItems(adic.items);
+      }
+    }
+    return html;
+  }
+
+  function buildQuotePrintHtml(data) {
+    const iva = data.conIva ? Math.max(0, data.total - data.subtotal) : 0;
+    return '<!DOCTYPE html><html lang="es"><head><meta charset="utf-8">' +
+      '<title>Cotización — ' + App.escapeHtml(data.direccion || 'Domus Rentals') + '</title>' +
+      '<style>' +
+      'body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1a1a1a;max-width:720px;margin:0 auto;padding:40px 32px;}' +
+      'h1{font-size:22px;margin:0 0 4px;}' +
+      '.pdf-sub{color:#666;font-size:13px;margin-bottom:24px;}' +
+      '.pdf-brand{font-size:13px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7a5cff;margin-bottom:6px;}' +
+      '.pdf-meta{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;font-size:13px;margin-bottom:28px;padding:16px;background:#f7f6fb;border-radius:10px;}' +
+      '.pdf-meta b{color:#444;}' +
+      '.pdf-sector-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:#7a5cff;margin:18px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;}' +
+      '.pdf-item-list{list-style:none;margin:0;padding:0;columns:2;column-gap:24px;}' +
+      '.pdf-item-list li{font-size:13px;padding:3px 0;break-inside:avoid;}' +
+      '.pdf-qty{color:#888;}' +
+      '.pdf-totales{margin-top:28px;border-top:2px solid #1a1a1a;padding-top:12px;}' +
+      '.pdf-totales table{width:100%;border-collapse:collapse;font-size:14px;}' +
+      '.pdf-totales td{padding:5px 0;}' +
+      '.pdf-totales .pdf-total-row td{font-weight:800;font-size:19px;padding-top:10px;}' +
+      '.pdf-ahorro{margin-top:10px;background:#eafbea;color:#1d7a35;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:700;}' +
+      '.pdf-footer{margin-top:36px;font-size:11px;color:#999;text-align:center;}' +
+      '.pdf-noprint{margin:20px 0;text-align:center;}' +
+      '.pdf-noprint button{font-size:14px;padding:10px 20px;border-radius:8px;border:none;background:#7a5cff;color:#fff;cursor:pointer;}' +
+      '@media print{.pdf-noprint{display:none;}body{padding:0;}}' +
+      '</style></head><body>' +
+      '<div class="pdf-brand">Domus Rentals</div>' +
+      '<h1>Cotización de Amoblado</h1>' +
+      '<div class="pdf-sub">' + App.escapeHtml(data.fechaLabel || '') + '</div>' +
+      '<div class="pdf-meta">' +
+      (data.paraNombre ? '<div><b>Para:</b> ' + App.escapeHtml(data.paraNombre) + '</div>' : '') +
+      (data.paraEmail ? '<div><b>Correo:</b> ' + App.escapeHtml(data.paraEmail) + '</div>' : '') +
+      (data.direccion ? '<div><b>Unidad:</b> ' + App.escapeHtml(data.direccion) + '</div>' : '') +
+      '<div><b>Tipología:</b> ' + App.escapeHtml(data.tipoLabel || '') + '</div>' +
+      '<div><b>Estilo:</b> ' + App.escapeHtml(data.estiloLabel || '') + '</div>' +
+      '</div>' +
+      (data.itemsHtml ? '<div class="pdf-sector-title" style="margin-top:0;">Incluye</div>' + data.itemsHtml : '') +
+      '<div class="pdf-totales"><table>' +
+      '<tr><td>Subtotal</td><td style="text-align:right;">' + App.fmtMoney(data.subtotal) + '</td></tr>' +
+      (data.conIva ? '<tr><td>IVA</td><td style="text-align:right;">' + App.fmtMoney(iva) + '</td></tr>' : '') +
+      '<tr class="pdf-total-row"><td>TOTAL' + (data.conIva ? ' (IVA incluido)' : '') + '</td><td style="text-align:right;">' + App.fmtMoney(data.total) + '</td></tr>' +
+      '</table></div>' +
+      (data.ahorro ? '<div class="pdf-ahorro">🎉 Ahorro incluido en esta cotización: ' + App.fmtMoney(data.ahorro) + '</div>' : '') +
+      '<div class="pdf-noprint"><button onclick="window.print()">Guardar como PDF / Imprimir</button></div>' +
+      '<div class="pdf-footer">Cotización generada por Domus Rentals. Sujeta a disponibilidad y confirmación.</div>' +
+      '</body></html>';
+  }
+
+  function openQuotePrintWindow(html) {
+    const win = window.open('', '_blank');
+    if (!win) {
+      App.toast('El navegador bloqueó la ventana. Permite ventanas emergentes para descargar la cotización.', 'error');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }
+
+  function descargarCotizacionActual() {
+    const t = calcTotales();
+    const selected = getSelectedPropiedad();
+    const itemsDesmarcados = cfg.itemsDesmarcados[cfg.tipologia] || [];
+    const estiloObj = Config.ESTILOS_AMOB.find(function (e) { return e.key === cfg.estilo; });
+    const html = buildQuotePrintHtml({
+      tipoLabel: t.tpl.label,
+      estiloLabel: estiloObj ? estiloObj.label : cfg.estilo,
+      direccion: selected ? (selected.propiedad.address || '') : '',
+      paraNombre: cfg.paraNombre,
+      paraEmail: cfg.paraEmail,
+      fechaLabel: fmtFechaLabel(new Date().toISOString()),
+      itemsHtml: itemsIncluidosHtml(t.tpl, itemsDesmarcados, cfg.incluirAmoblado, cfg.incluirAdicionales),
+      subtotal: t.subtotal,
+      conIva: cfg.conIva,
+      total: t.total,
+      ahorro: t.ahorro,
+    });
+    openQuotePrintWindow(html);
+  }
+
+  function descargarCotizacionHistorial(propiedad, c) {
+    const tpl = findTipologia(c.tipologia);
+    const estiloObj = Config.ESTILOS_AMOB.find(function (e) { return e.key === c.estilo; });
+    const cfgSnap = c.config || {};
+    const itemsDesmarcados = (cfgSnap.itemsDesmarcados && cfgSnap.itemsDesmarcados[c.tipologia]) || [];
+    const html = buildQuotePrintHtml({
+      tipoLabel: c.tipologiaLabel || tpl.label,
+      estiloLabel: estiloObj ? estiloObj.label : (c.estilo || ''),
+      direccion: propiedad.address || '',
+      paraNombre: c.paraNombre || '',
+      paraEmail: c.paraEmail || '',
+      fechaLabel: fmtFechaLabel(c.fecha),
+      itemsHtml: itemsIncluidosHtml(tpl, itemsDesmarcados, cfgSnap.incluirAmoblado !== false, !!cfgSnap.incluirAdicionales),
+      subtotal: c.subtotal,
+      conIva: !!cfgSnap.conIva,
+      total: c.total,
+      ahorro: c.ahorro,
+    });
+    openQuotePrintWindow(html);
+  }
+
+  function downloadCotizacionHistorial(cotizId) {
+    const found = getSelectedPropiedad();
+    if (!found) return;
+    const c = (found.propiedad.cotizaciones || []).find(function (x) { return String(x.id) === String(cotizId); });
+    if (!c) return;
+    descargarCotizacionHistorial(found.propiedad, c);
   }
 
   function render(root) {
@@ -253,7 +408,9 @@
     html += '<div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">' +
       '<button class="btn btn-primary" id="cotiz-save-btn"' + (selected ? '' : ' disabled title="Selecciona una unidad para guardar"') + '>Guardar cotización</button>' +
       '<button class="btn btn-ghost" id="cotiz-copy-btn">Copiar resumen</button>' +
-      '</div>';
+      '<button class="btn btn-ghost" id="cotiz-download-btn">⬇ Descargar para el cliente</button>' +
+      '</div>' +
+      '<div class="text-muted" style="font-size:11px;margin-top:6px;">La versión para el cliente no muestra el precio de cada mueble, sólo lo incluido y el total.</div>';
     if (!selected) {
       html += '<div class="text-muted" style="font-size:12px;margin-top:8px;">Selecciona una unidad arriba para poder guardar esta cotización en su historial.</div>';
     }
@@ -331,9 +488,14 @@
     if (saveBtn) saveBtn.addEventListener('click', function () { saveCotizacion(root); });
     const copyBtn = root.querySelector('#cotiz-copy-btn');
     if (copyBtn) copyBtn.addEventListener('click', function () { copyResumen(); });
+    const downloadBtn = root.querySelector('#cotiz-download-btn');
+    if (downloadBtn) downloadBtn.addEventListener('click', function () { descargarCotizacionActual(); });
 
     root.querySelectorAll('[data-del-cotiz]').forEach(function (b) {
       b.addEventListener('click', function () { deleteCotizacion(root, b.dataset.delCotiz); });
+    });
+    root.querySelectorAll('[data-download-cotiz]').forEach(function (b) {
+      b.addEventListener('click', function () { downloadCotizacionHistorial(b.dataset.downloadCotiz); });
     });
   }
 
