@@ -30,6 +30,7 @@
   };
 
   let detalleAbierto = false;
+  let unitSearch = ''; // filtra el selector de unidad por dirección o cliente
 
   function findTipologia(key) {
     return Config.TIPOLOGIAS_AMOB.find(function (t) { return t.key === key; }) || Config.TIPOLOGIAS_AMOB[0];
@@ -93,19 +94,39 @@
       App.escapeHtml(label) + '</button>';
   }
 
+  function unitMatchesSearch(client, p, q) {
+    if (!q) return true;
+    return (client.name || '').toLowerCase().includes(q) ||
+      (p.address || '').toLowerCase().includes(q) ||
+      (p.comuna || '').toLowerCase().includes(q);
+  }
+
   function unitSelectHtml() {
     const clients = allUnitsGrouped();
+    const q = unitSearch.trim().toLowerCase();
     let html = '<select id="cotiz-unit-select"><option value="">— Cotización libre (sin unidad) —</option>';
+    let anyMatch = false;
     clients.forEach(function (c) {
       if (!(c.propiedades || []).length) return;
+      // La unidad ya seleccionada siempre se incluye, aunque no calce con el
+      // filtro actual — si no, escribir en el buscador borraría la selección
+      // vigente en vez de simplemente acotar las opciones.
+      const matching = c.propiedades.filter(function (p) {
+        return unitMatchesSearch(c, p, q) || String(p.id) === String(cfg.targetPropId);
+      });
+      if (!matching.length) return;
+      anyMatch = true;
       html += '<optgroup label="' + App.escapeHtml(c.name || 'Sin nombre') + '">';
-      c.propiedades.forEach(function (p) {
+      matching.forEach(function (p) {
         html += '<option value="' + App.escapeHtml(p.id) + '"' + (String(p.id) === String(cfg.targetPropId) ? ' selected' : '') + '>' +
           App.escapeHtml(p.address || ('Unidad #' + p.id)) + '</option>';
       });
       html += '</optgroup>';
     });
     html += '</select>';
+    if (q && !anyMatch) {
+      html += '<div class="text-muted" style="font-size:12px;margin-top:4px;">Sin unidades que coincidan con "' + App.escapeHtml(unitSearch) + '".</div>';
+    }
     return html;
   }
 
@@ -155,6 +176,7 @@
   }
 
   function render(root) {
+    const focusSnap = App.captureFocus(root);
     const t = calcTotales();
     const selected = getSelectedPropiedad();
     const nDesmarcados = (cfg.itemsDesmarcados[cfg.tipologia] || []).length;
@@ -169,6 +191,9 @@
     html += '<div class="card">';
     html += '<div class="subsection-title">Unidad / destinatario</div>';
     html += '<div class="form-grid">' +
+      '<div class="form-group full"><label>Buscar unidad</label>' +
+      '<div class="search-box">🔎 <input type="text" id="cotiz-unit-search" placeholder="Buscar por dirección, comuna o cliente…" value="' + App.escapeHtml(unitSearch) + '"></div>' +
+      '</div>' +
       '<div class="form-group full"><label>Unidad</label>' + unitSelectHtml() + '</div>' +
       '<div class="form-group"><label>Para (nombre)</label><input type="text" id="cotiz-para-nombre" value="' + App.escapeHtml(cfg.paraNombre) + '"></div>' +
       '<div class="form-group"><label>Para (correo)</label><input type="email" id="cotiz-para-email" value="' + App.escapeHtml(cfg.paraEmail) + '"></div>' +
@@ -245,10 +270,18 @@
     }
 
     root.innerHTML = html;
+    App.restoreFocus(root, focusSnap);
     wire(root);
   }
 
   function wire(root) {
+    const unitSearchInput = root.querySelector('#cotiz-unit-search');
+    if (unitSearchInput) {
+      unitSearchInput.addEventListener('input', function (e) {
+        unitSearch = e.target.value;
+        render(root);
+      });
+    }
     root.querySelectorAll('[data-set-tipologia]').forEach(function (b) {
       b.addEventListener('click', function () { cfg.tipologia = b.dataset.setTipologia; render(root); });
     });
