@@ -1,4 +1,5 @@
 // state.js — in-memory app state + simple pub/sub re-render-on-change pattern.
+// (redeploy trigger)
 (function (global) {
   'use strict';
   const DomusData = global.DomusData;
